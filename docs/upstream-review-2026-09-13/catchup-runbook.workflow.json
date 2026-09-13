@@ -1,0 +1,257 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Upstream catch-up runbook",
+    "output": "catchup-runbook.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "happy-path",
+        "label": "Clean catch-up",
+        "focus": [
+          "measure",
+          "scan",
+          "ff",
+          "build",
+          "gates",
+          "dogfood"
+        ],
+        "note": "The path when the fork carries no local commits, which this review confirmed."
+      },
+      {
+        "id": "precondition",
+        "label": "What makes it safe",
+        "focus": [
+          "measure",
+          "nolocal",
+          "ff"
+        ],
+        "note": "The merge-base check that turns a 6,883-commit gap into a plain fast-forward."
+      },
+      {
+        "id": "gates",
+        "label": "Gates and failure",
+        "focus": [
+          "build",
+          "gates",
+          "red",
+          "dogfood"
+        ],
+        "note": "Repository lint gates, and where a failing check diverts into a bounded repair loop."
+      }
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "Catch-up step"
+        },
+        "frontend": {
+          "label": "Hand off"
+        },
+        "security": {
+          "label": "Gate / blocker"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Catch-up path"
+    },
+    {
+      "id": "checks",
+      "label": "Gates + blockers",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "p_review",
+      "label": "Review",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "p_sync",
+      "label": "Sync",
+      "fromCol": 2,
+      "toCol": 2,
+      "variant": "emphasis"
+    },
+    {
+      "id": "p_verify",
+      "label": "Verify",
+      "fromCol": 3,
+      "toCol": 4,
+      "variant": "dashed"
+    },
+    {
+      "id": "p_ship",
+      "label": "Dogfood",
+      "fromCol": 5,
+      "toCol": 5
+    }
+  ],
+  "mainPath": [
+    "measure",
+    "scan",
+    "ff",
+    "build",
+    "gates",
+    "dogfood"
+  ],
+  "nodes": [
+    {
+      "id": "measure",
+      "lane": "main",
+      "col": 0,
+      "type": "backend",
+      "label": "Measure the gap",
+      "sublabel": "6,883 commits behind",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "scan",
+      "lane": "main",
+      "col": 1,
+      "type": "backend",
+      "label": "New subsystems",
+      "sublabel": "2 new top-level trees",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "ff",
+      "lane": "main",
+      "col": 2,
+      "type": "backend",
+      "label": "Fast-forward",
+      "sublabel": "ff-only + submodules",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "build",
+      "lane": "main",
+      "col": 3,
+      "type": "backend",
+      "label": "Tagged build",
+      "sublabel": "reload.sh --tag",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "gates",
+      "lane": "main",
+      "col": 4,
+      "type": "backend",
+      "label": "Repo lint gates",
+      "sublabel": "pbxproj + lockfiles",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "dogfood",
+      "lane": "main",
+      "col": 5,
+      "type": "frontend",
+      "label": "Dogfood",
+      "sublabel": "cmux notify",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "nolocal",
+      "lane": "checks",
+      "col": 2,
+      "type": "security",
+      "label": "No local commits",
+      "sublabel": "merge-base = fork HEAD",
+      "tag": "af987b6",
+      "width": 130,
+      "height": 64
+    },
+    {
+      "id": "red",
+      "lane": "checks",
+      "col": 4,
+      "type": "security",
+      "label": "Check fails",
+      "sublabel": "bounded repair loop",
+      "width": 130,
+      "height": 64
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_measure_scan",
+      "from": "measure",
+      "to": "scan",
+      "variant": "default"
+    },
+    {
+      "id": "e_scan_ff",
+      "from": "scan",
+      "to": "ff",
+      "label": "clean fast-forward",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e_nolocal_ff",
+      "from": "nolocal",
+      "to": "ff",
+      "label": "precondition",
+      "variant": "security"
+    },
+    {
+      "id": "e_ff_build",
+      "from": "ff",
+      "to": "build",
+      "variant": "default"
+    },
+    {
+      "id": "e_build_gates",
+      "from": "build",
+      "to": "gates",
+      "label": "repo lints",
+      "variant": "default"
+    },
+    {
+      "id": "e_gates_dogfood",
+      "from": "gates",
+      "to": "dogfood",
+      "label": "hand off",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e_gates_red",
+      "from": "gates",
+      "to": "red",
+      "label": "if a check fails",
+      "variant": "security",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Why this is safe",
+      "items": [
+        "Merge-base af987b6 is the fork's own HEAD",
+        "Zero fork-local commits to preserve"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "What to run",
+      "items": [
+        "git fetch upstream && git merge --ff-only",
+        "Re-check the ghostty submodule pointer"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,438 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "cmux upstream subsystem map",
+    "output": "upstream-map.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/manaflow-ai/cmux",
+      "provider": "github",
+      "revision": "ff4428f343f41dc431c830acb1fdd256f393dd4d"
+    },
+    "views": [
+      {
+        "id": "terminal-path",
+        "label": "Local terminal path",
+        "focus": [
+          "user",
+          "macos",
+          "tui",
+          "ghostty"
+        ],
+        "note": "The path a developer keystroke takes from the macOS app into the Rust multiplexer and the terminal emulator."
+      },
+      {
+        "id": "remote-path",
+        "label": "Remote and Cloud path",
+        "focus": [
+          "tui",
+          "relay",
+          "iroh",
+          "machines"
+        ],
+        "note": "How sessions reach remote machines and Cloud VMs through the relay and iroh transport."
+      },
+      {
+        "id": "mobile-path",
+        "label": "Mobile and notifications",
+        "focus": [
+          "macos",
+          "push",
+          "ios",
+          "relay"
+        ],
+        "note": "Phone push delivery and mobile attach, the second-largest change area in the gap."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "macOS / iOS",
+      "pos": [
+        60,
+        260
+      ],
+      "size": [
+        130,
+        64
+      ]
+    },
+    {
+      "id": "macos",
+      "type": "frontend",
+      "label": "cmux macOS app",
+      "sublabel": "SwiftUI + AppKit",
+      "tag": "13.5k file touches",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmux.xcodeproj/project.pbxproj",
+          "label": "Xcode project"
+        }
+      ]
+    },
+    {
+      "id": "tui",
+      "type": "backend",
+      "label": "cmux-tui core",
+      "sublabel": "Rust multiplexer",
+      "tag": "cmux.protocol/2",
+      "pos": [
+        560,
+        260
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmux-tui/crates/cmux-tui-core/Cargo.toml",
+          "label": "core crate"
+        },
+        {
+          "path": "cmux-tui/README.md",
+          "label": "TUI overview"
+        }
+      ]
+    },
+    {
+      "id": "ghostty",
+      "type": "backend",
+      "label": "GhosttyKit",
+      "sublabel": "terminal + VT",
+      "pos": [
+        830,
+        260
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmux-tui/crates/ghostty-vt/Cargo.toml",
+          "label": "ghostty-vt crate"
+        }
+      ]
+    },
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "cmux Browser",
+      "sublabel": "Chromium overlay",
+      "tag": "new since fork",
+      "pos": [
+        560,
+        120
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmux-browser/README.md",
+          "label": "import status"
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "type": "backend",
+      "label": "Web control plane",
+      "sublabel": "Next.js + services",
+      "pos": [
+        830,
+        120
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "web/package.json",
+          "label": "web workspace"
+        }
+      ]
+    },
+    {
+      "id": "coderouter",
+      "type": "security",
+      "label": "coderouter",
+      "sublabel": "revocable API keys",
+      "tag": "#12502 era",
+      "pos": [
+        1100,
+        260
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "web/services/coderouter/README.md",
+          "label": "service"
+        },
+        {
+          "path": "Sources/Cloud/CoderouterClient.swift",
+          "label": "Swift client"
+        },
+        {
+          "path": "docs/coderouter-operations.md",
+          "label": "operations"
+        }
+      ]
+    },
+    {
+      "id": "machines",
+      "type": "cloud",
+      "label": "Cloud workspaces",
+      "sublabel": "VM lifecycle + readiness",
+      "pos": [
+        1100,
+        400
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "Packages/macOS/CmuxCloudMachines/Package.swift",
+          "label": "machines package"
+        }
+      ]
+    },
+    {
+      "id": "iroh",
+      "type": "cloud",
+      "label": "iroh transport",
+      "sublabel": "P2P + SSH tunnels",
+      "pos": [
+        830,
+        400
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmux-tui/crates/cmux-remote/Cargo.toml",
+          "label": "remote crate"
+        }
+      ]
+    },
+    {
+      "id": "relay",
+      "type": "messagebus",
+      "label": "cmux-relay",
+      "sublabel": "Cloudflare Durable Object",
+      "pos": [
+        560,
+        400
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmux-tui/relays/cloudflare-do/README.md",
+          "label": "relay worker"
+        }
+      ]
+    },
+    {
+      "id": "ios",
+      "type": "frontend",
+      "label": "cmux iOS app",
+      "sublabel": "Packages/iOS",
+      "tag": "8.7k file touches",
+      "pos": [
+        300,
+        400
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "Packages/iOS/CLAUDE.md",
+          "label": "iOS packages"
+        }
+      ]
+    },
+    {
+      "id": "push",
+      "type": "messagebus",
+      "label": "CmuxPhonePush",
+      "sublabel": "APNs delivery",
+      "pos": [
+        60,
+        400
+      ],
+      "size": [
+        130,
+        64
+      ],
+      "sources": [
+        {
+          "path": "Packages/macOS/CmuxPhonePush/Package.swift",
+          "label": "push package"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Remote transport",
+      "wraps": [
+        "relay",
+        "iroh"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Cloud control plane",
+      "wraps": [
+        "coderouter",
+        "machines"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "user-to-macos",
+      "from": "user",
+      "to": "macos",
+      "label": "launches",
+      "variant": "emphasis"
+    },
+    {
+      "id": "macos-to-tui",
+      "from": "macos",
+      "to": "tui",
+      "label": "cmux.protocol/2",
+      "variant": "emphasis"
+    },
+    {
+      "id": "tui-to-ghostty",
+      "from": "tui",
+      "to": "ghostty",
+      "label": "PTY + VT"
+    },
+    {
+      "id": "browser-to-tui",
+      "from": "browser",
+      "to": "tui",
+      "label": "terminal frontends",
+      "labelDy": 24
+    },
+    {
+      "id": "tui-to-relay",
+      "from": "tui",
+      "to": "relay",
+      "label": "session relay",
+      "labelDy": 24
+    },
+    {
+      "id": "relay-to-iroh",
+      "from": "relay",
+      "to": "iroh",
+      "label": "encrypted transport"
+    },
+    {
+      "id": "iroh-to-machines",
+      "from": "iroh",
+      "to": "machines",
+      "label": "remote sessions"
+    },
+    {
+      "id": "machines-to-coderouter",
+      "from": "machines",
+      "to": "coderouter",
+      "label": "API-key auth",
+      "variant": "security"
+    },
+    {
+      "id": "web-to-coderouter",
+      "from": "web",
+      "to": "coderouter",
+      "label": "issues revocable keys",
+      "variant": "security"
+    },
+    {
+      "id": "ios-to-relay",
+      "from": "ios",
+      "to": "relay",
+      "label": "mobile attach"
+    },
+    {
+      "id": "macos-to-push",
+      "from": "macos",
+      "to": "push",
+      "label": "session events",
+      "variant": "dashed",
+      "toSide": "top",
+      "labelDy": 16
+    },
+    {
+      "id": "push-to-ios",
+      "from": "push",
+      "to": "ios",
+      "label": "APNs",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Fork status",
+      "items": [
+        "6,883 commits / 1,317 PRs behind upstream",
+        "Merge-base af987b6 \u2014 clean fast-forward"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Where the work went",
+      "items": [
+        "Packages/macOS 13.5k file touches",
+        "cmux-tui ~10k, Packages/iOS 8.7k"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "New since the fork",
+      "items": [
+        "cmux-browser, TunnelExtension, schemas",
+        "10 new macOS packages; daemon/ removed"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Last 10 days",
+      "items": [
+        "Cloud terminal readiness hardening",
+        "coderouter revocable API keys"
+      ]
+    }
+  ]
+}
