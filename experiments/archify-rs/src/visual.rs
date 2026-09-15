@@ -177,7 +177,7 @@ fn measure(
     let mut dom = dump_dom(chrome, url, width, window_h)?;
     let mut inner_h: u32 = attr(&dom, "data-inner-h")
         .and_then(|v| v.parse().ok())
-        .ok_or("page did not report data-inner-h; is this an archify-rs artifact?")?;
+        .ok_or("page did not report data-inner-h; only archify-rs artifacts instrument themselves for visual-check")?;
     if inner_h != height && inner_h > 0 {
         window_h = height + (height - inner_h.min(height));
         dom = dump_dom(chrome, url, width, window_h)?;
@@ -224,7 +224,24 @@ pub struct VisualReport {
 }
 
 pub fn run(html: &Path, chrome_hint: Option<&str>, out_dir: Option<&Path>) -> VisualReport {
-    let bytes = std::fs::read(html).unwrap_or_default();
+    let Ok(bytes) = std::fs::read(html) else {
+        let message = format!(
+            "artifact {} does not exist; a failed deliver writes nothing, so there is nothing to check",
+            html.display()
+        );
+        return VisualReport {
+            ok: false,
+            receipt: json!({
+                "schemaVersion": 1, "ok": false, "command": "visual-check", "evidenceKind": "automated-browser", "status": "skipped",
+                "visualReview": "pending",
+                "artifact": { "path": html.display().to_string(), "sha256": Value::Null, "bytes": 0 },
+                "diagnostics": [Diagnostic::error("viewer/artifact-missing", message.clone())
+                    .subject(json!({ "artifact": html.display().to_string() }))
+                    .fix("run deliver until it commits, then visual-check the committed path")],
+                "error": message
+            }),
+        };
+    };
     let artifact = FileReceipt::of(&bytes);
     let stem = html
         .file_stem()

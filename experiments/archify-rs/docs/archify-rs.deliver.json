@@ -1,0 +1,66 @@
+{
+  "artifact": {
+    "bytes": 47166,
+    "sha256": "cf9564c71c60b1279360d996a472e7ed7ede58ef31a9eb2b30a054dbeb7677dc"
+  },
+  "checks": [
+    {
+      "details": [
+        "found 1 <svg> block(s)"
+      ],
+      "name": "single_svg",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "finite_svg",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "orthogonal_arrows",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "label_route_clearance",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "relationship_crossings",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "relationship_corridors",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "container_border_runs",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "route_rhythm",
+      "ok": true
+    },
+    {
+      "details": [],
+      "name": "legend_clearance",
+      "ok": true
+    }
+  ],
+  "command": "deliver",
+  "input": "experiments/archify-rs/examples/archify-rs.architecture.json",
+  "ok": true,
+  "output": "experiments/archify-rs/docs/archify-rs.html",
+  "quality": "showcase",
+  "schemaVersion": 1,
+  "specification": {
+    "bytes": 10098,
+    "sha256": "750e81af4e7066c7593625fe83dc66b404852078f1f0b54b04831741a3fcdfad"
+  },
+  "type": "architecture"
+}

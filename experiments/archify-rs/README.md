@@ -93,3 +93,20 @@ Unit tests cover geometry, routing, label placement, schema semantics,
 remote-URL normalisation, and hashing. `tests/pipeline.rs` drives the
 compiled binary through validate / deliver / failure paths on the bundled
 examples.
+
+## Self-portrait
+
+`examples/archify-rs.architecture.json` is this crate drawn by itself. Every
+node cites the source file and line it stands for, pinned to a commit of
+this repository, and the tool verifies those citations against the checkout
+before it will render:
+
+```bash
+./target/release/archify-rs deliver architecture examples/archify-rs.architecture.json \
+  docs/archify-rs.html --quality showcase --repo-root ../..
+./target/release/archify-rs visual-check docs/archify-rs.html
+```
+
+The delivered page, its receipts, and 1440×900 light/dark screenshots live in
+[`docs/`](docs/). Open `docs/archify-rs.html` in a browser; the `SRC` badges
+link to the exact lines on GitHub.

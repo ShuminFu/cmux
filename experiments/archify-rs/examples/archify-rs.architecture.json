@@ -1,0 +1,490 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "archify-rs codebase design",
+    "output": "archify-rs.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/ShuminFu/cmux",
+      "provider": "github",
+      "revision": "1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4"
+    },
+    "views": [
+      {
+        "id": "validate-path",
+        "label": "What validate runs",
+        "focus": [
+          "cli",
+          "spec",
+          "evidence",
+          "layout",
+          "scene",
+          "checks"
+        ],
+        "note": "Parse and schema-check the spec, verify its evidence, lay it out into a Scene, run the nine checks. Nothing is written."
+      },
+      {
+        "id": "deliver-path",
+        "label": "What deliver adds",
+        "focus": [
+          "scene",
+          "checks",
+          "render",
+          "assets",
+          "visual",
+          "receipt"
+        ],
+        "note": "Render the frozen Scene, commit the HTML atomically, hash spec and artifact, then prove containment in a real browser."
+      },
+      {
+        "id": "engine",
+        "label": "Geometry engine",
+        "focus": [
+          "geom",
+          "route",
+          "layout"
+        ],
+        "note": "The router, the text model, and the two layout compilers every diagram type shares."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "cli",
+      "type": "external",
+      "label": "archify-rs CLI",
+      "sublabel": "3 commands · one pipeline",
+      "pos": [
+        40,
+        280
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/main.rs",
+          "line": 289,
+          "label": "entry point"
+        }
+      ]
+    },
+    {
+      "id": "spec",
+      "type": "backend",
+      "label": "spec",
+      "sublabel": "parse + schema + semantics",
+      "pos": [
+        260,
+        280
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/spec.rs",
+          "line": 560,
+          "label": "load"
+        },
+        {
+          "path": "experiments/archify-rs/src/spec.rs",
+          "line": 872,
+          "label": "semantics"
+        }
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "security",
+      "label": "evidence",
+      "sublabel": "git-verified sources",
+      "pos": [
+        260,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/evidence.rs",
+          "line": 51,
+          "label": "verify"
+        }
+      ]
+    },
+    {
+      "id": "route",
+      "type": "backend",
+      "label": "route",
+      "sublabel": "orthogonal router + labels",
+      "pos": [
+        480,
+        120
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/route.rs",
+          "line": 354,
+          "label": "route"
+        },
+        {
+          "path": "experiments/archify-rs/src/route.rs",
+          "line": 460,
+          "label": "place_label"
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "type": "backend",
+      "label": "arch · workflow",
+      "sublabel": "layout compilers",
+      "tag": "2 diagram types",
+      "pos": [
+        480,
+        280
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/arch.rs",
+          "line": 57,
+          "label": "architecture"
+        },
+        {
+          "path": "experiments/archify-rs/src/workflow.rs",
+          "line": 30,
+          "label": "workflow"
+        }
+      ]
+    },
+    {
+      "id": "geom",
+      "type": "database",
+      "label": "geom",
+      "sublabel": "Pt · Rect · Seg · text model",
+      "pos": [
+        480,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/geom.rs",
+          "line": 269,
+          "label": "text model"
+        },
+        {
+          "path": "experiments/archify-rs/src/geom.rs",
+          "line": 8,
+          "label": "0.60em advance"
+        }
+      ]
+    },
+    {
+      "id": "scene",
+      "type": "database",
+      "label": "Scene",
+      "sublabel": "renderer-neutral model",
+      "pos": [
+        700,
+        280
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/scene.rs",
+          "line": 128,
+          "label": "Scene"
+        },
+        {
+          "path": "experiments/archify-rs/src/scene.rs",
+          "line": 186,
+          "label": "viewBox + legend"
+        }
+      ]
+    },
+    {
+      "id": "checks",
+      "type": "security",
+      "label": "checks",
+      "sublabel": "9 checks + readability",
+      "tag": "showcase gate",
+      "pos": [
+        920,
+        120
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/checks.rs",
+          "line": 41,
+          "label": "run"
+        },
+        {
+          "path": "experiments/archify-rs/src/checks.rs",
+          "line": 21,
+          "label": "930px rule"
+        }
+      ]
+    },
+    {
+      "id": "render",
+      "type": "frontend",
+      "label": "render",
+      "sublabel": "HTML + one inline SVG",
+      "pos": [
+        920,
+        280
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/render.rs",
+          "line": 392,
+          "label": "html"
+        },
+        {
+          "path": "experiments/archify-rs/src/render.rs",
+          "line": 206,
+          "label": "svg"
+        }
+      ]
+    },
+    {
+      "id": "assets",
+      "type": "frontend",
+      "label": "viewer runtime",
+      "sublabel": "inlined CSS + JS",
+      "pos": [
+        920,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/assets/viewer.js",
+          "label": "runtime"
+        },
+        {
+          "path": "experiments/archify-rs/src/assets/viewer.css",
+          "label": "theme tokens"
+        }
+      ]
+    },
+    {
+      "id": "visual",
+      "type": "cloud",
+      "label": "visual",
+      "sublabel": "headless Chromium",
+      "pos": [
+        1140,
+        280
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/visual.rs",
+          "line": 226,
+          "label": "run"
+        },
+        {
+          "path": "experiments/archify-rs/src/visual.rs",
+          "line": 169,
+          "label": "calibrated measure"
+        }
+      ]
+    },
+    {
+      "id": "receipt",
+      "type": "database",
+      "label": "receipt",
+      "sublabel": "SHA-256 + bytes",
+      "pos": [
+        1140,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "experiments/archify-rs/src/receipt.rs",
+          "line": 14,
+          "label": "of"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Layout engine",
+      "wraps": [
+        "route",
+        "layout",
+        "geom"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Delivery",
+      "wraps": [
+        "render",
+        "assets",
+        "visual",
+        "receipt"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "cli-load",
+      "from": "cli",
+      "to": "spec",
+      "label": "load",
+      "variant": "emphasis"
+    },
+    {
+      "id": "spec-evidence",
+      "from": "spec",
+      "to": "evidence",
+      "label": "sources + revision",
+      "variant": "security"
+    },
+    {
+      "id": "spec-layout",
+      "from": "spec",
+      "to": "layout",
+      "label": "Spec",
+      "variant": "emphasis"
+    },
+    {
+      "id": "route-layout",
+      "from": "route",
+      "to": "layout",
+      "label": "routes + labels"
+    },
+    {
+      "id": "geom-layout",
+      "from": "geom",
+      "to": "layout",
+      "label": "rects · text width",
+      "variant": "dashed"
+    },
+    {
+      "id": "layout-scene",
+      "from": "layout",
+      "to": "scene",
+      "label": "compile",
+      "variant": "emphasis"
+    },
+    {
+      "id": "scene-checks",
+      "from": "scene",
+      "to": "checks",
+      "label": "9 checks + readability"
+    },
+    {
+      "id": "checks-render",
+      "from": "checks",
+      "to": "render",
+      "label": "gate",
+      "variant": "security"
+    },
+    {
+      "id": "scene-render",
+      "from": "scene",
+      "to": "render",
+      "label": "frozen",
+      "variant": "emphasis"
+    },
+    {
+      "id": "assets-render",
+      "from": "assets",
+      "to": "render",
+      "label": "include_str!",
+      "variant": "dashed"
+    },
+    {
+      "id": "render-visual",
+      "from": "render",
+      "to": "visual",
+      "label": "HTML",
+      "variant": "emphasis"
+    },
+    {
+      "id": "visual-receipt",
+      "from": "visual",
+      "to": "receipt",
+      "label": "artifact sha256",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Shape",
+      "items": [
+        "13 modules · ~4.4k lines incl. viewer and tests",
+        "3 dependencies: serde, serde_json, sha2"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Invariants",
+      "items": [
+        "Validator text widths are the renderer's (0.60em mono)",
+        "Same spec bytes → same SHA-256; a failed deliver writes nothing"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Gates",
+      "items": [
+        "9 named checks + layout constraints",
+        "Readability: font × min(1, 930 / viewBoxW) ≥ 6px"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Versus archify",
+      "items": [
+        "architecture + workflow; no sequence, dataflow, lifecycle",
+        "~40 KB artifacts instead of ~800 KB"
+      ]
+    }
+  ]
+}

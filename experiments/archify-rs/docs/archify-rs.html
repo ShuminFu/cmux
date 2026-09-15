@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="archify-rs">
+<title>archify-rs codebase design</title>
+<style id="archify-css">:root {
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f1f3f6; --ink: #101418; --muted: #5b6673; --line: #d9dee5; --grid: #e9edf2;
+  --accent: #0b7285; --focus: #1c7ed6;
+  --k-frontend-fill: #e3f7fb; --k-frontend-stroke: #0b7285;
+  --k-backend-fill: #e6f7ee; --k-backend-stroke: #1f7a4d;
+  --k-database-fill: #efe9fb; --k-database-stroke: #6741d9;
+  --k-cloud-fill: #fff4e0; --k-cloud-stroke: #d9822b;
+  --k-security-fill: #fdecef; --k-security-stroke: #c92a2a;
+  --k-messagebus-fill: #fff0e6; --k-messagebus-stroke: #e8590c;
+  --k-external-fill: #eef0f3; --k-external-stroke: #5b6673;
+  --r-default: #6b7684; --r-emphasis: #1f7a4d; --r-security: #c92a2a; --r-dashed: #7048e8; --r-main: #1f7a4d; --r-error: #c92a2a;
+  --band-lane: #c4ccd6; --band-exception: #e03131; --band-phase: #dce3ea; --phase-emphasis: #1f7a4d; --phase-dashed: #d9822b;
+  --card-cyan: #0b7285; --card-emerald: #2b8a3e; --card-violet: #6741d9; --card-amber: #e67700; --card-rose: #c2255c; --card-orange: #e8590c; --card-slate: #495057;
+  --shadow: 0 1px 2px rgba(16, 20, 24, .06), 0 8px 24px rgba(16, 20, 24, .06);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --panel: #161b22; --panel-2: #1c232c; --ink: #e8edf3; --muted: #9aa7b4; --line: #2a333e; --grid: #1b222b;
+    --k-frontend-fill: #0f2f36; --k-frontend-stroke: #4fd1e0;
+    --k-backend-fill: #10301f; --k-backend-stroke: #55d68a;
+    --k-database-fill: #241b45; --k-database-stroke: #a48cf5;
+    --k-cloud-fill: #3a2a10; --k-cloud-stroke: #f3b25a;
+    --k-security-fill: #3b1518; --k-security-stroke: #ff6b6b;
+    --k-messagebus-fill: #3a2113; --k-messagebus-stroke: #ff922b;
+    --k-external-fill: #1f2731; --k-external-stroke: #9aa7b4;
+    --r-default: #8b97a5; --r-emphasis: #55d68a; --r-security: #ff6b6b; --r-dashed: #b197fc; --r-main: #55d68a; --r-error: #ff6b6b;
+    --band-lane: #3a4653; --band-exception: #ff6b6b; --band-phase: #263039; --phase-emphasis: #55d68a; --phase-dashed: #f3b25a;
+    --card-cyan: #4fd1e0; --card-emerald: #55d68a; --card-violet: #a48cf5; --card-amber: #f3b25a; --card-rose: #ff6b9d; --card-orange: #ff922b; --card-slate: #b8c2cc;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --panel: #161b22; --panel-2: #1c232c; --ink: #e8edf3; --muted: #9aa7b4; --line: #2a333e; --grid: #1b222b;
+  --k-frontend-fill: #0f2f36; --k-frontend-stroke: #4fd1e0;
+  --k-backend-fill: #10301f; --k-backend-stroke: #55d68a;
+  --k-database-fill: #241b45; --k-database-stroke: #a48cf5;
+  --k-cloud-fill: #3a2a10; --k-cloud-stroke: #f3b25a;
+  --k-security-fill: #3b1518; --k-security-stroke: #ff6b6b;
+  --k-messagebus-fill: #3a2113; --k-messagebus-stroke: #ff922b;
+  --k-external-fill: #1f2731; --k-external-stroke: #9aa7b4;
+  --r-default: #8b97a5; --r-emphasis: #55d68a; --r-security: #ff6b6b; --r-dashed: #b197fc; --r-main: #55d68a; --r-error: #ff6b6b;
+  --band-lane: #3a4653; --band-exception: #ff6b6b; --band-phase: #263039; --phase-emphasis: #55d68a; --phase-dashed: #f3b25a;
+  --card-cyan: #4fd1e0; --card-emerald: #55d68a; --card-violet: #a48cf5; --card-amber: #f3b25a; --card-rose: #ff6b9d; --card-orange: #ff922b; --card-slate: #b8c2cc;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; line-height: 1.4; }
+.app { padding: 12px 16px 16px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); align-self: center; flex: none; }
+.brand h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+.brand .sub { color: var(--muted); font-size: 12px; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button, .seg { font: inherit; }
+button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px; box-shadow: var(--shadow); }
+button:hover { border-color: var(--accent); }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); box-shadow: var(--shadow); }
+.seg button { border: 0; border-radius: 0; box-shadow: none; }
+.seg button + button { border-left: 1px solid var(--line); }
+.menu { position: relative; }
+.menu-list { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; z-index: 5; min-width: 140px; }
+.menu.open .menu-list { display: grid; gap: 2px; }
+.menu-list button { border: 0; box-shadow: none; text-align: left; width: 100%; }
+.views { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.views .lead { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; }
+.views button .n { display: inline-block; min-width: 18px; text-align: center; border-radius: 6px; background: var(--panel-2); color: var(--accent); font-size: 10px; margin-right: 6px; padding: 1px 4px; }
+#view-note { margin: 6px 0 0; color: var(--muted); font-size: 12px; min-height: 1.2em; }
+.reader { max-width: var(--reader-width, 1440px); margin: 10px auto 0; }
+.stage { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 12px; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; background-position: 12px 12px; }
+.stage svg { display: block; width: 100%; height: auto; touch-action: none; cursor: grab; }
+.stage svg.dragging { cursor: grabbing; }
+.stage-tools { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.stage-tools input { font: inherit; font-size: 12px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); min-width: 160px; }
+.stage-tools .spacer { flex: 1; }
+#zoom-level { color: var(--muted); font-size: 11px; min-width: 42px; text-align: center; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
+.card h3 { margin: 0 0 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.card h3 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.card ul { margin: 0; padding-left: 14px; color: var(--muted); font-size: 12px; }
+.card li + li { margin-top: 3px; }
+.foot { margin-top: 10px; color: var(--muted); font-size: 11px; display: flex; gap: 12px; flex-wrap: wrap; }
+body.present .topbar, body.present .views, body.present #view-note, body.present .cards, body.present .foot, body.present .stage-tools { display: none; }
+body.present .reader { max-width: none; }
+body.present .app { padding: 8px; }
+/* SVG */
+svg text { font-family: var(--mono); fill: var(--ink); }
+.node rect.body { stroke-width: 1.4; }
+.node.kind-frontend rect.body { fill: var(--k-frontend-fill); stroke: var(--k-frontend-stroke); }
+.node.kind-backend rect.body { fill: var(--k-backend-fill); stroke: var(--k-backend-stroke); }
+.node.kind-database rect.body { fill: var(--k-database-fill); stroke: var(--k-database-stroke); }
+.node.kind-cloud rect.body { fill: var(--k-cloud-fill); stroke: var(--k-cloud-stroke); }
+.node.kind-security rect.body { fill: var(--k-security-fill); stroke: var(--k-security-stroke); }
+.node.kind-messagebus rect.body { fill: var(--k-messagebus-fill); stroke: var(--k-messagebus-stroke); }
+.node.kind-external rect.body { fill: var(--k-external-fill); stroke: var(--k-external-stroke); }
+.node.main rect.body { stroke-width: 2; }
+.node .node-label { font-weight: 700; }
+.node .node-sub { fill: var(--muted); }
+.node .pill rect { fill: var(--panel); stroke: var(--line); }
+.node .pill text { fill: var(--muted); font-weight: 600; }
+.node a .pill rect { stroke: var(--accent); }
+.node a .pill text { fill: var(--accent); }
+.node .glyph { fill: none; stroke-width: 1.3; }
+.node.kind-frontend .glyph { stroke: var(--k-frontend-stroke); }
+.node.kind-backend .glyph { stroke: var(--k-backend-stroke); }
+.node.kind-database .glyph { stroke: var(--k-database-stroke); }
+.node.kind-cloud .glyph { stroke: var(--k-cloud-stroke); }
+.node.kind-security .glyph { stroke: var(--k-security-stroke); }
+.node.kind-messagebus .glyph { stroke: var(--k-messagebus-stroke); }
+.node.kind-external .glyph { stroke: var(--k-external-stroke); }
+.route { fill: none; stroke-linejoin: round; stroke-linecap: butt; }
+.route.v-default { stroke: var(--r-default); }
+.route.v-emphasis { stroke: var(--r-emphasis); }
+.route.v-security { stroke: var(--r-security); }
+.route.v-dashed { stroke: var(--r-dashed); stroke-dasharray: 5 4; }
+.route.role-error { stroke: var(--r-error); stroke-dasharray: 5 4; }
+.route.role-async, .route.role-branch { stroke-dasharray: 5 4; }
+.route.main { stroke: var(--r-main); }
+.rlabel rect { fill: var(--panel); stroke: none; }
+.rlabel text { fill: var(--muted); }
+.route.v-emphasis + .rlabel text, .rlabel.v-emphasis text { fill: var(--r-emphasis); }
+.rlabel.v-security text, .rlabel.role-error text { fill: var(--r-security); }
+.rlabel.v-dashed text { fill: var(--r-dashed); }
+.rlabel.main text { fill: var(--r-main); }
+.boundary rect { fill: none; stroke: var(--band-lane); stroke-dasharray: 6 5; stroke-width: 1.2; }
+.boundary.kind-region rect { stroke: var(--phase-dashed); fill: color-mix(in srgb, var(--phase-dashed) 6%, transparent); }
+.boundary.kind-security-group rect { stroke: var(--r-security); }
+.boundary.kind-group rect { stroke: var(--band-lane); }
+.boundary.v-security rect { stroke: var(--r-security); }
+.boundary.v-emphasis rect { stroke: var(--phase-emphasis); }
+.boundary text { fill: var(--muted); font-weight: 600; }
+.boundary.kind-region text { fill: var(--phase-dashed); }
+.lane rect { fill: none; stroke: var(--band-lane); stroke-dasharray: 6 5; stroke-width: 1.2; }
+.lane text { fill: var(--muted); font-weight: 600; }
+.lane.v-exception rect { stroke: var(--band-exception); }
+.lane.v-exception text { fill: var(--band-exception); }
+.phase rect { fill: var(--band-phase); stroke: none; }
+.phase text { fill: var(--muted); font-weight: 600; }
+.phase.v-emphasis text { fill: var(--phase-emphasis); }
+.phase.v-dashed text { fill: var(--phase-dashed); }
+.legend text { fill: var(--muted); }
+.legend .title { fill: var(--ink); font-weight: 700; }
+.legend .count rect { fill: var(--panel-2); }
+.legend .sw { stroke-width: 1.2; }
+.legend .sw.kind-frontend { fill: var(--k-frontend-fill); stroke: var(--k-frontend-stroke); }
+.legend .sw.kind-backend { fill: var(--k-backend-fill); stroke: var(--k-backend-stroke); }
+.legend .sw.kind-database { fill: var(--k-database-fill); stroke: var(--k-database-stroke); }
+.legend .sw.kind-cloud { fill: var(--k-cloud-fill); stroke: var(--k-cloud-stroke); }
+.legend .sw.kind-security { fill: var(--k-security-fill); stroke: var(--k-security-stroke); }
+.legend .sw.kind-messagebus { fill: var(--k-messagebus-fill); stroke: var(--k-messagebus-stroke); }
+.legend .sw.kind-external { fill: var(--k-external-fill); stroke: var(--k-external-stroke); }
+svg.focus-mode .node:not(.is-focus), svg.focus-mode .route:not(.is-focus), svg.focus-mode .rlabel:not(.is-focus) { opacity: .18; }
+svg.search-mode .node:not(.hit) { opacity: .25; }
+.node.hit rect.body { stroke: var(--focus); stroke-width: 2.2; }
+.node, .route, .rlabel { transition: opacity .18s ease; }
+svg.trace .route.main { stroke-dasharray: 7 5; animation: archify-trace 1.1s linear infinite; }
+@keyframes archify-trace { to { stroke-dashoffset: -24; } }
+@media (max-width: 720px) { .brand h1 { font-size: 16px; } .app { padding: 10px 12px 12px; } }
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar"><div class="brand"><span class="dot"></span><h1>archify-rs codebase design</h1></div><div class="controls"><div class="seg" role="group" aria-label="Color mode"><button data-theme-choice="light">Light</button><button data-theme-choice="dark">Dark</button><button data-theme-choice="system">System</button></div><button id="btn-present" aria-pressed="false">Present</button><div class="menu"><button id="btn-export">Export ▾</button><div class="menu-list"><button data-export="svg">SVG</button><button data-export="png">PNG (2×)</button></div></div></div></header>
+<nav class="views" aria-label="Guided views"><span class="lead">Guided views</span><button data-view="" data-focus="" data-note="" aria-pressed="true">All</button><button data-view="validate-path" data-focus="cli,spec,evidence,layout,scene,checks" data-note="Parse and schema-check the spec, verify its evidence, lay it out into a Scene, run the nine checks. Nothing is written." aria-pressed="false"><span class="n">01</span>What validate runs</button><button data-view="deliver-path" data-focus="scene,checks,render,assets,visual,receipt" data-note="Render the frozen Scene, commit the HTML atomically, hash spec and artifact, then prove containment in a real browser." aria-pressed="false"><span class="n">02</span>What deliver adds</button><button data-view="engine" data-focus="geom,route,layout" data-note="The router, the text model, and the two layout compilers every diagram type shares." aria-pressed="false"><span class="n">03</span>Geometry engine</button></nav><p id="view-note"></p>
+<main class="reader"><section class="stage" id="stage">
+<svg id="diagram" class="archify" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1374 614" data-vb-w="1374" data-vb-h="614" role="img" aria-label="archify-rs codebase design"><defs><marker id="arrow-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--r-default)"/></marker><marker id="arrow-emphasis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--r-emphasis)"/></marker><marker id="arrow-security" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--r-security)"/></marker><marker id="arrow-dashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--r-dashed)"/></marker><marker id="arrow-main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--r-main)"/></marker><marker id="arrow-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--r-error)"/></marker></defs><g class="layer bands"></g><g class="layer boundaries"><g class="boundary kind-region v-default"><rect x="456" y="82" width="218" height="446" rx="12"/><text x="466" y="95" font-size="9">Layout engine</text></g><g class="boundary kind-region v-default"><rect x="896" y="242" width="438" height="286" rx="12"/><text x="906" y="255" font-size="9">Delivery</text></g></g><g class="layer routes"><path class="route v-emphasis main" data-id="cli-load" data-from="cli" data-to="spec" d="M210 312 L260 312" stroke-width="2.2" marker-end="url(#arrow-main)"><title>cli → spec: load</title></path><path class="route v-security" data-id="spec-evidence" data-from="spec" data-to="evidence" d="M345 344 L345 440" stroke-width="1.8" marker-end="url(#arrow-security)"><title>spec → evidence: sources + revision</title></path><path class="route v-emphasis main" data-id="spec-layout" data-from="spec" data-to="layout" d="M430 312 L480 312" stroke-width="2.2" marker-end="url(#arrow-main)"><title>spec → layout: Spec</title></path><path class="route v-default" data-id="route-layout" data-from="route" data-to="layout" d="M565 184 L565 280" stroke-width="1.6" marker-end="url(#arrow-default)"><title>route → layout: routes + labels</title></path><path class="route v-dashed" data-id="geom-layout" data-from="geom" data-to="layout" d="M565 440 L565 344" stroke-width="1.4" marker-end="url(#arrow-dashed)"><title>geom → layout: rects · text width</title></path><path class="route v-emphasis main" data-id="layout-scene" data-from="layout" data-to="scene" d="M650 312 L700 312" stroke-width="2.2" marker-end="url(#arrow-main)"><title>layout → scene: compile</title></path><path class="route v-default" data-id="scene-checks" data-from="scene" data-to="checks" d="M785 280 L785 232 L995 232 L995 184" stroke-width="1.6" marker-end="url(#arrow-default)"><title>scene → checks: 9 checks + readability</title></path><path class="route v-security" data-id="checks-render" data-from="checks" data-to="render" d="M1015 184 L1015 232 L1005 232 L1005 280" stroke-width="1.8" marker-end="url(#arrow-security)"><title>checks → render: gate</title></path><path class="route v-emphasis main" data-id="scene-render" data-from="scene" data-to="render" d="M870 312 L920 312" stroke-width="2.2" marker-end="url(#arrow-main)"><title>scene → render: frozen</title></path><path class="route v-dashed" data-id="assets-render" data-from="assets" data-to="render" d="M1005 440 L1005 344" stroke-width="1.4" marker-end="url(#arrow-dashed)"><title>assets → render: include_str!</title></path><path class="route v-emphasis main" data-id="render-visual" data-from="render" data-to="visual" d="M1090 312 L1140 312" stroke-width="2.2" marker-end="url(#arrow-main)"><title>render → visual: HTML</title></path><path class="route v-dashed" data-id="visual-receipt" data-from="visual" data-to="receipt" d="M1225 344 L1225 440" stroke-width="1.4" marker-end="url(#arrow-dashed)"><title>visual → receipt: artifact sha256</title></path></g><g class="layer labels"><g class="rlabel v-emphasis main" data-route="cli-load"><rect x="222.4" y="294" width="25.2" height="14" rx="3"/><text x="235" y="305" font-size="8" text-anchor="middle">load</text></g><g class="rlabel v-security" data-route="spec-evidence"><rect x="347" y="384" width="92.4" height="14" rx="3"/><text x="351" y="395" font-size="8" text-anchor="start">sources + revision</text></g><g class="rlabel v-emphasis main" data-route="spec-layout"><rect x="442.4" y="294" width="25.2" height="14" rx="3"/><text x="455" y="305" font-size="8" text-anchor="middle">Spec</text></g><g class="rlabel v-default" data-route="route-layout"><rect x="567" y="224" width="78" height="14" rx="3"/><text x="571" y="235" font-size="8" text-anchor="start">routes + labels</text></g><g class="rlabel v-dashed" data-route="geom-layout"><rect x="567" y="384" width="92.4" height="14" rx="3"/><text x="571" y="395" font-size="8" text-anchor="start">rects · text width</text></g><g class="rlabel v-emphasis main" data-route="layout-scene"><rect x="655.2" y="294" width="39.6" height="14" rx="3"/><text x="675" y="305" font-size="8" text-anchor="middle">compile</text></g><g class="rlabel v-default" data-route="scene-checks"><rect x="834.2" y="214" width="111.6" height="14" rx="3"/><text x="890" y="225" font-size="8" text-anchor="middle">9 checks + readability</text></g><g class="rlabel v-security" data-route="checks-render"><rect x="1007" y="248" width="25.2" height="14" rx="3"/><text x="1011" y="259" font-size="8" text-anchor="start">gate</text></g><g class="rlabel v-emphasis main" data-route="scene-render"><rect x="877.6" y="294" width="34.8" height="14" rx="3"/><text x="895" y="305" font-size="8" text-anchor="middle">frozen</text></g><g class="rlabel v-dashed" data-route="assets-render"><rect x="1007" y="384" width="63.6" height="14" rx="3"/><text x="1011" y="395" font-size="8" text-anchor="start">include_str!</text></g><g class="rlabel v-emphasis main" data-route="render-visual"><rect x="1102.4" y="294" width="25.2" height="14" rx="3"/><text x="1115" y="305" font-size="8" text-anchor="middle">HTML</text></g><g class="rlabel v-dashed" data-route="visual-receipt"><rect x="1227" y="384" width="78" height="14" rx="3"/><text x="1231" y="395" font-size="8" text-anchor="start">artifact sha256</text></g></g><g class="layer nodes"><g class="node kind-external" data-id="cli" data-label="archify-rs CLI 3 commands · one pipeline"><rect class="body" x="40" y="280" width="170" height="64" rx="10"/><path class="glyph" transform="translate(47 286)" d="M1 8.5v-6h3 M5 2.5h3v3 M8 2.5l-4.5 4.5"/><text class="node-label" data-detail="label" x="125" y="311" font-size="11" text-anchor="middle">archify-rs CLI</text><text class="node-sub" data-detail="context" x="125" y="325" font-size="9" text-anchor="middle">3 commands · one pipeline</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/main.rs#L289" target="_blank" rel="noopener"><title>experiments/archify-rs/src/main.rs:289 — entry point</title><g class="pill src"><rect x="175" y="285" width="29" height="11" rx="5.5"/><text x="189.5" y="293.2" font-size="7" text-anchor="middle">SRC 1</text></g></a></g><g class="node kind-backend" data-id="spec" data-label="spec parse + schema + semantics"><rect class="body" x="260" y="280" width="170" height="64" rx="10"/><path class="glyph" transform="translate(267 286)" d="M2 1l-2 3.2 2 3.2 M7 1l2 3.2-2 3.2"/><text class="node-label" data-detail="label" x="345" y="311" font-size="11" text-anchor="middle">spec</text><text class="node-sub" data-detail="context" x="345" y="325" font-size="9" text-anchor="middle">parse + schema + semantics</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/spec.rs#L560" target="_blank" rel="noopener"><title>experiments/archify-rs/src/spec.rs:560 — load
+experiments/archify-rs/src/spec.rs:872 — semantics</title><g class="pill src"><rect x="395" y="285" width="29" height="11" rx="5.5"/><text x="409.5" y="293.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-security" data-id="evidence" data-label="evidence git-verified sources"><rect class="body" x="260" y="440" width="170" height="64" rx="10"/><path class="glyph" transform="translate(267 446)" d="M4.5 1l3.5 1.3v2.5c0 1.8-1.5 3.1-3.5 3.7-2-.6-3.5-1.9-3.5-3.7V2.3z"/><text class="node-label" data-detail="label" x="345" y="471" font-size="11" text-anchor="middle">evidence</text><text class="node-sub" data-detail="context" x="345" y="485" font-size="9" text-anchor="middle">git-verified sources</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/evidence.rs#L51" target="_blank" rel="noopener"><title>experiments/archify-rs/src/evidence.rs:51 — verify</title><g class="pill src"><rect x="395" y="445" width="29" height="11" rx="5.5"/><text x="409.5" y="453.2" font-size="7" text-anchor="middle">SRC 1</text></g></a></g><g class="node kind-backend" data-id="route" data-label="route orthogonal router + labels"><rect class="body" x="480" y="120" width="170" height="64" rx="10"/><path class="glyph" transform="translate(487 126)" d="M2 1l-2 3.2 2 3.2 M7 1l2 3.2-2 3.2"/><text class="node-label" data-detail="label" x="565" y="151" font-size="11" text-anchor="middle">route</text><text class="node-sub" data-detail="context" x="565" y="165" font-size="9" text-anchor="middle">orthogonal router + labels</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/route.rs#L354" target="_blank" rel="noopener"><title>experiments/archify-rs/src/route.rs:354 — route
+experiments/archify-rs/src/route.rs:460 — place_label</title><g class="pill src"><rect x="615" y="125" width="29" height="11" rx="5.5"/><text x="629.5" y="133.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-backend" data-id="layout" data-label="arch · workflow layout compilers"><rect class="body" x="480" y="280" width="170" height="64" rx="10"/><path class="glyph" transform="translate(487 286)" d="M2 1l-2 3.2 2 3.2 M7 1l2 3.2-2 3.2"/><text class="node-label" data-detail="label" x="565" y="311" font-size="11" text-anchor="middle">arch · workflow</text><text class="node-sub" data-detail="context" x="565" y="325" font-size="9" text-anchor="middle">layout compilers</text><g class="pill tag"><rect x="500" y="285" width="71" height="11" rx="5.5"/><text x="535.5" y="293.2" font-size="7" text-anchor="middle">2 diagram types</text></g><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/arch.rs#L57" target="_blank" rel="noopener"><title>experiments/archify-rs/src/arch.rs:57 — architecture
+experiments/archify-rs/src/workflow.rs:30 — workflow</title><g class="pill src"><rect x="615" y="285" width="29" height="11" rx="5.5"/><text x="629.5" y="293.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-database" data-id="geom" data-label="geom Pt · Rect · Seg · text model"><rect class="body" x="480" y="440" width="170" height="64" rx="10"/><path class="glyph" transform="translate(487 446)" d="M4.5 1c2.5 0 4 .7 4 1.5s-1.5 1.5-4 1.5-4-.7-4-1.5S2 1 4.5 1z M.5 2.5v4c0 .8 1.5 1.5 4 1.5s4-.7 4-1.5v-4"/><text class="node-label" data-detail="label" x="565" y="471" font-size="11" text-anchor="middle">geom</text><text class="node-sub" data-detail="context" x="565" y="485" font-size="9" text-anchor="middle">Pt · Rect · Seg · text model</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/geom.rs#L269" target="_blank" rel="noopener"><title>experiments/archify-rs/src/geom.rs:269 — text model
+experiments/archify-rs/src/geom.rs:8 — 0.60em advance</title><g class="pill src"><rect x="615" y="445" width="29" height="11" rx="5.5"/><text x="629.5" y="453.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-database" data-id="scene" data-label="Scene renderer-neutral model"><rect class="body" x="700" y="280" width="170" height="64" rx="10"/><path class="glyph" transform="translate(707 286)" d="M4.5 1c2.5 0 4 .7 4 1.5s-1.5 1.5-4 1.5-4-.7-4-1.5S2 1 4.5 1z M.5 2.5v4c0 .8 1.5 1.5 4 1.5s4-.7 4-1.5v-4"/><text class="node-label" data-detail="label" x="785" y="311" font-size="11" text-anchor="middle">Scene</text><text class="node-sub" data-detail="context" x="785" y="325" font-size="9" text-anchor="middle">renderer-neutral model</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/scene.rs#L128" target="_blank" rel="noopener"><title>experiments/archify-rs/src/scene.rs:128 — Scene
+experiments/archify-rs/src/scene.rs:186 — viewBox + legend</title><g class="pill src"><rect x="835" y="285" width="29" height="11" rx="5.5"/><text x="849.5" y="293.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-security" data-id="checks" data-label="checks 9 checks + readability"><rect class="body" x="920" y="120" width="170" height="64" rx="10"/><path class="glyph" transform="translate(927 126)" d="M4.5 1l3.5 1.3v2.5c0 1.8-1.5 3.1-3.5 3.7-2-.6-3.5-1.9-3.5-3.7V2.3z"/><text class="node-label" data-detail="label" x="1005" y="151" font-size="11" text-anchor="middle">checks</text><text class="node-sub" data-detail="context" x="1005" y="165" font-size="9" text-anchor="middle">9 checks + readability</text><g class="pill tag"><rect x="940" y="125" width="62.6" height="11" rx="5.5"/><text x="971.3" y="133.2" font-size="7" text-anchor="middle">showcase gate</text></g><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/checks.rs#L41" target="_blank" rel="noopener"><title>experiments/archify-rs/src/checks.rs:41 — run
+experiments/archify-rs/src/checks.rs:21 — 930px rule</title><g class="pill src"><rect x="1055" y="125" width="29" height="11" rx="5.5"/><text x="1069.5" y="133.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-frontend" data-id="render" data-label="render HTML + one inline SVG"><rect class="body" x="920" y="280" width="170" height="64" rx="10"/><path class="glyph" transform="translate(927 286)" d="M0 1.5h9v6h-9z M0 3.5h9"/><text class="node-label" data-detail="label" x="1005" y="311" font-size="11" text-anchor="middle">render</text><text class="node-sub" data-detail="context" x="1005" y="325" font-size="9" text-anchor="middle">HTML + one inline SVG</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/render.rs#L392" target="_blank" rel="noopener"><title>experiments/archify-rs/src/render.rs:392 — html
+experiments/archify-rs/src/render.rs:206 — svg</title><g class="pill src"><rect x="1055" y="285" width="29" height="11" rx="5.5"/><text x="1069.5" y="293.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-frontend" data-id="assets" data-label="viewer runtime inlined CSS + JS"><rect class="body" x="920" y="440" width="170" height="64" rx="10"/><path class="glyph" transform="translate(927 446)" d="M0 1.5h9v6h-9z M0 3.5h9"/><text class="node-label" data-detail="label" x="1005" y="471" font-size="11" text-anchor="middle">viewer runtime</text><text class="node-sub" data-detail="context" x="1005" y="485" font-size="9" text-anchor="middle">inlined CSS + JS</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/assets/viewer.js" target="_blank" rel="noopener"><title>experiments/archify-rs/src/assets/viewer.js — runtime
+experiments/archify-rs/src/assets/viewer.css — theme tokens</title><g class="pill src"><rect x="1055" y="445" width="29" height="11" rx="5.5"/><text x="1069.5" y="453.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-cloud" data-id="visual" data-label="visual headless Chromium"><rect class="body" x="1140" y="280" width="170" height="64" rx="10"/><path class="glyph" transform="translate(1147 286)" d="M2.5 7.5h4.5a2 2 0 0 0 .3-4 3 3 0 0 0-5.6-.6 2.3 2.3 0 0 0 .8 4.6z"/><text class="node-label" data-detail="label" x="1225" y="311" font-size="11" text-anchor="middle">visual</text><text class="node-sub" data-detail="context" x="1225" y="325" font-size="9" text-anchor="middle">headless Chromium</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/visual.rs#L226" target="_blank" rel="noopener"><title>experiments/archify-rs/src/visual.rs:226 — run
+experiments/archify-rs/src/visual.rs:169 — calibrated measure</title><g class="pill src"><rect x="1275" y="285" width="29" height="11" rx="5.5"/><text x="1289.5" y="293.2" font-size="7" text-anchor="middle">SRC 2</text></g></a></g><g class="node kind-database" data-id="receipt" data-label="receipt SHA-256 + bytes"><rect class="body" x="1140" y="440" width="170" height="64" rx="10"/><path class="glyph" transform="translate(1147 446)" d="M4.5 1c2.5 0 4 .7 4 1.5s-1.5 1.5-4 1.5-4-.7-4-1.5S2 1 4.5 1z M.5 2.5v4c0 .8 1.5 1.5 4 1.5s4-.7 4-1.5v-4"/><text class="node-label" data-detail="label" x="1225" y="471" font-size="11" text-anchor="middle">receipt</text><text class="node-sub" data-detail="context" x="1225" y="485" font-size="9" text-anchor="middle">SHA-256 + bytes</text><a href="https://github.com/ShuminFu/cmux/blob/1a40f01d8a985bbd9e3cb84e79def0dc0544f1f4/experiments/archify-rs/src/receipt.rs#L14" target="_blank" rel="noopener"><title>experiments/archify-rs/src/receipt.rs:14 — of</title><g class="pill src"><rect x="1275" y="445" width="29" height="11" rx="5.5"/><text x="1289.5" y="453.2" font-size="7" text-anchor="middle">SRC 1</text></g></a></g></g><g class="layer legend"><text class="title" x="40" y="572" font-size="10">Legend</text><rect class="sw kind-frontend" x="40" y="582" width="14" height="9" rx="2"/><text x="59" y="590" font-size="9">Frontend</text><g class="count"><rect x="107.2" y="581" width="10.8" height="11" rx="4"/><text x="112.6" y="589.5" font-size="8" text-anchor="middle">2</text></g><rect class="sw kind-backend" x="134" y="582" width="14" height="9" rx="2"/><text x="153" y="590" font-size="9">Backend</text><g class="count"><rect x="195.8" y="581" width="10.8" height="11" rx="4"/><text x="201.2" y="589.5" font-size="8" text-anchor="middle">3</text></g><rect class="sw kind-database" x="222.6" y="582" width="14" height="9" rx="2"/><text x="241.6" y="590" font-size="9">Database</text><g class="count"><rect x="289.8" y="581" width="10.8" height="11" rx="4"/><text x="295.2" y="589.5" font-size="8" text-anchor="middle">3</text></g><rect class="sw kind-cloud" x="316.6" y="582" width="14" height="9" rx="2"/><text x="335.6" y="590" font-size="9">Cloud</text><g class="count"><rect x="367.6" y="581" width="10.8" height="11" rx="4"/><text x="373" y="589.5" font-size="8" text-anchor="middle">1</text></g><rect class="sw kind-security" x="394.4" y="582" width="14" height="9" rx="2"/><text x="413.4" y="590" font-size="9">Security</text><g class="count"><rect x="461.6" y="581" width="10.8" height="11" rx="4"/><text x="467" y="589.5" font-size="8" text-anchor="middle">2</text></g><rect class="sw kind-external" x="488.4" y="582" width="14" height="9" rx="2"/><text x="507.4" y="590" font-size="9">External</text><g class="count"><rect x="555.6" y="581" width="10.8" height="11" rx="4"/><text x="561" y="589.5" font-size="8" text-anchor="middle">1</text></g></g></svg>
+<div class="stage-tools"><input id="search" type="search" placeholder="Search nodes" aria-label="Search nodes"><span class="spacer"></span><button data-zoom="-" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button data-zoom="+" aria-label="Zoom in">+</button><button data-zoom="0">Reset</button></div>
+</section>
+<section class="cards"><article class="card"><h3><span class="dot" style="background:var(--card-cyan)"></span>Shape</h3><ul><li>13 modules · ~4.4k lines incl. viewer and tests</li><li>3 dependencies: serde, serde_json, sha2</li></ul></article><article class="card"><h3><span class="dot" style="background:var(--card-emerald)"></span>Invariants</h3><ul><li>Validator text widths are the renderer&#39;s (0.60em mono)</li><li>Same spec bytes → same SHA-256; a failed deliver writes nothing</li></ul></article><article class="card"><h3><span class="dot" style="background:var(--card-amber)"></span>Gates</h3><ul><li>9 named checks + layout constraints</li><li>Readability: font × min(1, 930 / viewBoxW) ≥ 6px</li></ul></article><article class="card"><h3><span class="dot" style="background:var(--card-rose)"></span>Versus archify</h3><ul><li>architecture + workflow; no sequence, dataflow, lifecycle</li><li>~40 KB artifacts instead of ~800 KB</li></ul></article></section>
+</main>
+<footer class="foot"><span>archify-rs · architecture · showcase</span><span>viewBox 1374×614</span><span>12 nodes · 12 relationships</span></footer>
+</div>
+<script>(function () {
+  'use strict';
+  var root = document.documentElement;
+  var svg = document.getElementById('diagram');
+  var stage = document.getElementById('stage');
+  var vbW = parseFloat(svg.getAttribute('data-vb-w'));
+  var vbH = parseFloat(svg.getAttribute('data-vb-h'));
+  var base = { x: 0, y: 0, w: vbW, h: vbH };
+  var view = { x: 0, y: 0, w: vbW, h: vbH };
+  var TOKENS = ['--bg','--panel','--panel-2','--ink','--muted','--line','--grid','--accent','--focus','--mono',
+    '--k-frontend-fill','--k-frontend-stroke','--k-backend-fill','--k-backend-stroke','--k-database-fill','--k-database-stroke',
+    '--k-cloud-fill','--k-cloud-stroke','--k-security-fill','--k-security-stroke','--k-messagebus-fill','--k-messagebus-stroke',
+    '--k-external-fill','--k-external-stroke','--r-default','--r-emphasis','--r-security','--r-dashed','--r-main','--r-error',
+    '--band-lane','--band-exception','--band-phase','--phase-emphasis','--phase-dashed'];
+
+  // ---- theme -------------------------------------------------------------
+  function applyTheme(choice) {
+    if (choice === 'light' || choice === 'dark') root.setAttribute('data-theme', choice);
+    else root.removeAttribute('data-theme');
+    document.querySelectorAll('[data-theme-choice]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-choice') === choice));
+    });
+    try { localStorage.setItem('archify-rs-theme', choice); } catch (e) {}
+  }
+  var forced = null;
+  try { forced = new URLSearchParams(location.search).get('theme'); } catch (e) {}
+  var stored = null;
+  try { stored = localStorage.getItem('archify-rs-theme'); } catch (e) {}
+  applyTheme(forced || stored || 'system');
+  document.querySelectorAll('[data-theme-choice]').forEach(function (b) {
+    b.addEventListener('click', function () { applyTheme(b.getAttribute('data-theme-choice')); });
+  });
+
+  // ---- pan / zoom --------------------------------------------------------
+  function setView() {
+    svg.setAttribute('viewBox', [view.x, view.y, view.w, view.h].map(function (v) { return Math.round(v * 100) / 100; }).join(' '));
+    var z = document.getElementById('zoom-level');
+    if (z) z.textContent = Math.round(base.w / view.w * 100) + '%';
+  }
+  function zoomAt(factor, cx, cy) {
+    var nw = Math.min(base.w * 8, Math.max(base.w / 8, view.w / factor));
+    var nh = nw * (base.h / base.w);
+    var rx = cx == null ? 0.5 : cx;
+    var ry = cy == null ? 0.5 : cy;
+    view.x = view.x + (view.w - nw) * rx;
+    view.y = view.y + (view.h - nh) * ry;
+    view.w = nw; view.h = nh;
+    setView();
+  }
+  svg.addEventListener('wheel', function (ev) {
+    ev.preventDefault();
+    var r = svg.getBoundingClientRect();
+    zoomAt(ev.deltaY < 0 ? 1.12 : 1 / 1.12, (ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height);
+  }, { passive: false });
+  var drag = null;
+  svg.addEventListener('pointerdown', function (ev) {
+    if (ev.target.closest && ev.target.closest('a')) return;
+    drag = { x: ev.clientX, y: ev.clientY, vx: view.x, vy: view.y };
+    svg.classList.add('dragging');
+    try { svg.setPointerCapture(ev.pointerId); } catch (e) {}
+  });
+  svg.addEventListener('pointermove', function (ev) {
+    if (!drag) return;
+    var r = svg.getBoundingClientRect();
+    view.x = drag.vx - (ev.clientX - drag.x) * (view.w / r.width);
+    view.y = drag.vy - (ev.clientY - drag.y) * (view.h / r.height);
+    setView();
+  });
+  function endDrag() { drag = null; svg.classList.remove('dragging'); }
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+  document.querySelectorAll('[data-zoom]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.getAttribute('data-zoom');
+      if (k === '+') zoomAt(1.25);
+      else if (k === '-') zoomAt(1 / 1.25);
+      else { view = { x: base.x, y: base.y, w: base.w, h: base.h }; setView(); }
+    });
+  });
+
+  // ---- guided views ------------------------------------------------------
+  var note = document.getElementById('view-note');
+  function setFocus(ids) {
+    var set = {};
+    ids.forEach(function (id) { set[id] = true; });
+    var on = ids.length > 0;
+    svg.classList.toggle('focus-mode', on);
+    svg.querySelectorAll('.node').forEach(function (n) { n.classList.toggle('is-focus', !!set[n.getAttribute('data-id')]); });
+    svg.querySelectorAll('.route').forEach(function (p) {
+      var f = !!(set[p.getAttribute('data-from')] && set[p.getAttribute('data-to')]);
+      p.classList.toggle('is-focus', f);
+      var lab = svg.querySelector('.rlabel[data-route="' + CSS.escape(p.getAttribute('data-id')) + '"]');
+      if (lab) lab.classList.toggle('is-focus', f);
+    });
+  }
+  document.querySelectorAll('[data-view]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('[data-view]').forEach(function (o) { o.setAttribute('aria-pressed', 'false'); });
+      b.setAttribute('aria-pressed', 'true');
+      var focus = (b.getAttribute('data-focus') || '').split(',').filter(Boolean);
+      setFocus(focus);
+      if (note) note.textContent = b.getAttribute('data-note') || '';
+    });
+  });
+
+  // ---- search ------------------------------------------------------------
+  var search = document.getElementById('search');
+  if (search) {
+    search.addEventListener('input', function () {
+      var q = search.value.trim().toLowerCase();
+      svg.classList.toggle('search-mode', q.length > 0);
+      svg.querySelectorAll('.node').forEach(function (n) {
+        var hay = (n.getAttribute('data-label') || '').toLowerCase();
+        n.classList.toggle('hit', q.length > 0 && hay.indexOf(q) >= 0);
+      });
+    });
+  }
+
+  // ---- present -----------------------------------------------------------
+  var present = document.getElementById('btn-present');
+  if (present) {
+    present.addEventListener('click', function () {
+      var on = document.body.classList.toggle('present');
+      present.setAttribute('aria-pressed', String(on));
+      if (on && root.requestFullscreen) { root.requestFullscreen().catch(function () {}); }
+      else if (!on && document.fullscreenElement && document.exitFullscreen) { document.exitFullscreen().catch(function () {}); }
+      fitReader();
+    });
+  }
+
+  // ---- export ------------------------------------------------------------
+  var menu = document.querySelector('.menu');
+  var exportBtn = document.getElementById('btn-export');
+  if (exportBtn && menu) {
+    exportBtn.addEventListener('click', function (ev) { ev.stopPropagation(); menu.classList.toggle('open'); });
+    document.addEventListener('click', function () { menu.classList.remove('open'); });
+  }
+  function standaloneSvg() {
+    var clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    clone.setAttribute('viewBox', [base.x, base.y, base.w, base.h].join(' '));
+    clone.setAttribute('width', String(base.w));
+    clone.setAttribute('height', String(base.h));
+    clone.classList.remove('focus-mode', 'search-mode');
+    var cs = getComputedStyle(root);
+    var vars = TOKENS.map(function (t) { return t + ':' + cs.getPropertyValue(t).trim() + ';'; }).join('');
+    var style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = ':root,svg{' + vars + '}' + document.getElementById('archify-css').textContent;
+    clone.insertBefore(style, clone.firstChild);
+    var bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', cs.getPropertyValue('--panel').trim());
+    clone.insertBefore(bg, style.nextSibling);
+    return new XMLSerializer().serializeToString(clone);
+  }
+  function download(blob, name) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  var slug = (document.title || 'diagram').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'diagram';
+  document.querySelectorAll('[data-export]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var kind = b.getAttribute('data-export');
+      var text = standaloneSvg();
+      if (kind === 'svg') { download(new Blob([text], { type: 'image/svg+xml' }), slug + '.svg'); return; }
+      var img = new Image();
+      var url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+      img.onload = function () {
+        var scale = 2;
+        var c = document.createElement('canvas');
+        c.width = Math.round(base.w * scale); c.height = Math.round(base.h * scale);
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (blob) { if (blob) download(blob, slug + '@2x.png'); }, 'image/png');
+      };
+      img.src = url;
+    });
+  });
+
+  // ---- adaptive reader width + instrumentation ---------------------------
+  function outerHeightExceptStage() {
+    var total = 0;
+    var els = document.querySelectorAll('.topbar, .views, #view-note, .cards, .foot, .stage-tools');
+    els.forEach(function (el) {
+      if (!el.offsetParent && getComputedStyle(el).display === 'none') return;
+      var cs = getComputedStyle(el);
+      total += el.getBoundingClientRect().height + parseFloat(cs.marginTop || 0) + parseFloat(cs.marginBottom || 0);
+    });
+    var app = getComputedStyle(document.querySelector('.app'));
+    total += parseFloat(app.paddingTop || 0) + parseFloat(app.paddingBottom || 0) + 12 /* reader margin */ + 26 /* stage padding */;
+    return total;
+  }
+  function fitReader() {
+    var minW = 960, maxW = Math.min(1440, window.innerWidth - 32);
+    var aspect = vbW / vbH;
+    for (var pass = 0; pass < 3; pass++) {
+      var avail = window.innerHeight - outerHeightExceptStage() - 2;
+      var byHeight = avail * aspect + 26;
+      var w = Math.max(minW, Math.min(maxW, byHeight));
+      document.documentElement.style.setProperty('--reader-width', Math.floor(w) + 'px');
+    }
+    instrument();
+  }
+  function instrument() {
+    var r = svg.getBoundingClientRect();
+    var scale = r.width / vbW;
+    var min = Infinity;
+    svg.querySelectorAll('.node text').forEach(function (t) {
+      var fs = parseFloat(t.getAttribute('font-size') || '0');
+      if (fs > 0) min = Math.min(min, fs * scale);
+    });
+    root.setAttribute('data-inner-w', String(window.innerWidth));
+    root.setAttribute('data-inner-h', String(window.innerHeight));
+    root.setAttribute('data-scroll-w', String(root.scrollWidth));
+    root.setAttribute('data-scroll-h', String(root.scrollHeight));
+    root.setAttribute('data-diagram-w', String(Math.round(r.width)));
+    root.setAttribute('data-min-text-px', isFinite(min) ? min.toFixed(3) : '');
+  }
+  window.addEventListener('resize', fitReader);
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fitReader); }
+  fitReader();
+  requestAnimationFrame(function () { requestAnimationFrame(fitReader); });
+  setView();
+})();
+</script>
+</body>
+</html>

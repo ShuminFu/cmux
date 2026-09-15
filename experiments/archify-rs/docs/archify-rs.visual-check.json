@@ -1,0 +1,188 @@
+{
+  "artifact": {
+    "bytes": 47166,
+    "path": "experiments/archify-rs/docs/archify-rs.html",
+    "sha256": "cf9564c71c60b1279360d996a472e7ed7ede58ef31a9eb2b30a054dbeb7677dc"
+  },
+  "captures": {
+    "screenshots": [
+      {
+        "height": 900,
+        "path": "experiments/archify-rs/docs/archify-rs.visual-check.1440x900.light.png",
+        "theme": "light",
+        "width": 1440
+      },
+      {
+        "height": 1320,
+        "path": "experiments/archify-rs/docs/archify-rs.visual-check.2048x1320.light.png",
+        "theme": "light",
+        "width": 2048
+      },
+      {
+        "height": 900,
+        "path": "experiments/archify-rs/docs/archify-rs.visual-check.1440x900.dark.png",
+        "theme": "dark",
+        "width": 1440
+      },
+      {
+        "height": 1320,
+        "path": "experiments/archify-rs/docs/archify-rs.visual-check.2048x1320.dark.png",
+        "theme": "dark",
+        "width": 2048
+      }
+    ],
+    "status": "pass"
+  },
+  "chrome": {
+    "executable": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    "status": "available"
+  },
+  "command": "visual-check",
+  "containment": {
+    "status": "pass",
+    "viewports": [
+      {
+        "diagramWidth": 1215,
+        "height": 900,
+        "innerHeight": 900,
+        "innerWidth": 1440,
+        "minimumProjectedNodeTextPx": 6.19,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 900,
+        "scrollWidth": 1440,
+        "theme": "light",
+        "width": 1440,
+        "windowHeight": 987
+      },
+      {
+        "diagramWidth": 1414,
+        "height": 1000,
+        "innerHeight": 1000,
+        "innerWidth": 1600,
+        "minimumProjectedNodeTextPx": 7.204,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 1000,
+        "scrollWidth": 1600,
+        "theme": "light",
+        "width": 1600,
+        "windowHeight": 1087
+      },
+      {
+        "diagramWidth": 1414,
+        "height": 1080,
+        "innerHeight": 1080,
+        "innerWidth": 1920,
+        "minimumProjectedNodeTextPx": 7.204,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 1080,
+        "scrollWidth": 1920,
+        "theme": "light",
+        "width": 1920,
+        "windowHeight": 1167
+      },
+      {
+        "diagramWidth": 1414,
+        "height": 1320,
+        "innerHeight": 1320,
+        "innerWidth": 2048,
+        "minimumProjectedNodeTextPx": 7.204,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 1320,
+        "scrollWidth": 2048,
+        "theme": "light",
+        "width": 2048,
+        "windowHeight": 1407
+      },
+      {
+        "diagramWidth": 1215,
+        "height": 900,
+        "innerHeight": 900,
+        "innerWidth": 1440,
+        "minimumProjectedNodeTextPx": 6.19,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 900,
+        "scrollWidth": 1440,
+        "theme": "dark",
+        "width": 1440,
+        "windowHeight": 987
+      },
+      {
+        "diagramWidth": 1414,
+        "height": 1000,
+        "innerHeight": 1000,
+        "innerWidth": 1600,
+        "minimumProjectedNodeTextPx": 7.204,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 1000,
+        "scrollWidth": 1600,
+        "theme": "dark",
+        "width": 1600,
+        "windowHeight": 1087
+      },
+      {
+        "diagramWidth": 1414,
+        "height": 1080,
+        "innerHeight": 1080,
+        "innerWidth": 1920,
+        "minimumProjectedNodeTextPx": 7.204,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 1080,
+        "scrollWidth": 1920,
+        "theme": "dark",
+        "width": 1920,
+        "windowHeight": 1167
+      },
+      {
+        "diagramWidth": 1414,
+        "height": 1320,
+        "innerHeight": 1320,
+        "innerWidth": 2048,
+        "minimumProjectedNodeTextPx": 7.204,
+        "ok": true,
+        "overflowX": false,
+        "overflowY": false,
+        "readabilityOk": true,
+        "scrollHeight": 1320,
+        "scrollWidth": 2048,
+        "theme": "dark",
+        "width": 2048,
+        "windowHeight": 1407
+      }
+    ]
+  },
+  "diagnostics": [],
+  "evidenceKind": "automated-browser",
+  "ok": true,
+  "readability": {
+    "minimumProjectedNodeTextPx": 6.0,
+    "observedMinimumPx": 6.19,
+    "status": "pass"
+  },
+  "schemaVersion": 1,
+  "sidecars": {
+    "receipt": "archify-rs.visual-check.json"
+  },
+  "status": "pass",
+  "visualReview": "pending"
+}
