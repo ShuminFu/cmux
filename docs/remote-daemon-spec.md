@@ -44,6 +44,10 @@ This is a **living implementation spec** (also called an **execution spec**): a 
 - `DONE` persistent daemon slots advertise `pty.session.persistent_daemon`; cmux requires that capability before preserving a saved remote PTY session ID across app relaunch.
 - `DONE` clean workspace teardown verifies the relay's slot matches the workspace, sends an authenticated per-slot shutdown, waits a bounded interval for daemon ownership to release, removes relay shell state, and reaps disconnected daemons whose exact previously observed relay slot lease disappears.
 
+### 3.2a Rust Port of the Daemon
+- `DONE` `daemon/remote-rs` is a Rust port of `daemon/remote` with the same stdio RPC protocol, persistent per-slot daemon, WebSocket transport, cloud CLI bridge, CLI relay, tmux compat layer, and agent launch shims. The Go test suite is ported (223 tests), and `daemon/remote-rs/parity/run_parity.py` diffs both binaries across 112 scenarios; CI runs it in `remote-daemon-rs-tests`.
+- `TODO` the Go binary is still the release artifact (`scripts/build_remote_daemon_release_assets.sh`); switching bootstrap to the Rust binary is a separate, deliberate cut-over.
+
 ### 3.5 CLI Relay (Running cmux Commands From Remote)
 - `DONE` `cmuxd-remote` includes a table-driven CLI relay (`cli` subcommand) that maps CLI args to v1 text or v2 JSON-RPC messages.
 - `DONE` busybox-style argv[0] detection: when invoked as `cmux` via wrapper/symlink, auto-dispatches to CLI relay.

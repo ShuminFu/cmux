@@ -31,12 +31,18 @@ def assert_areas(
     web: bool,
     go: bool,
     agent_session_web: bool = False,
+    rust_remote: bool | None = None,
 ) -> None:
     actual = module.classify_files(paths)
     assert actual.macos is macos, (paths, actual)
     assert actual.web is web, (paths, actual)
     assert actual.go is go, (paths, actual)
     assert actual.agent_session_web is agent_session_web, (paths, actual)
+    if rust_remote is None:
+        # Go daemon changes also run the Rust parity job; everything else
+        # only routes there for the Rust crate itself.
+        rust_remote = go
+    assert actual.rust_remote is rust_remote, (paths, actual)
 
 
 def test_docs_only_skips_expensive_areas() -> None:
@@ -133,15 +139,20 @@ def test_ios_only_skips_main_macos_ci() -> None:
 
 
 def test_remote_daemon_runs_go_only() -> None:
-    assert_areas(["daemon/remote/main.go"], macos=False, web=False, go=True)
+    assert_areas(["daemon/remote/main.go"], macos=False, web=False, go=True, rust_remote=True)
+
+
+def test_rust_remote_daemon_only_runs_cargo_job() -> None:
+    assert_areas(["daemon/remote-rs/src/rpc.rs", "daemon/remote-rs/Cargo.lock"], macos=False, web=False, go=False, rust_remote=True)
+    assert_areas(["scripts/run-remote-daemon-rs-checks.sh"], macos=True, web=False, go=False, rust_remote=True)
 
 
 def test_remote_daemon_asset_builder_runs_go_validation() -> None:
-    assert_areas(["scripts/build_remote_daemon_release_assets.sh"], macos=True, web=False, go=True)
+    assert_areas(["scripts/build_remote_daemon_release_assets.sh"], macos=True, web=False, go=True, rust_remote=False)
 
 
 def test_remote_daemon_manifest_generator_runs_go_validation() -> None:
-    assert_areas(["scripts/generate_remote_daemon_release_manifest.py"], macos=True, web=False, go=True)
+    assert_areas(["scripts/generate_remote_daemon_release_manifest.py"], macos=True, web=False, go=True, rust_remote=False)
 
 
 def test_app_source_runs_macos() -> None:
@@ -243,6 +254,7 @@ def linux_preflight_needs(
         "web": "true",
         "go": "true",
         "agent_session_web": "true",
+        "rust_remote": "true",
     }
     if outputs:
         route_outputs.update(outputs)
@@ -250,6 +262,7 @@ def linux_preflight_needs(
         "changes": "success",
         "workflow-guard-tests": "success",
         "remote-daemon-tests": "success",
+        "remote-daemon-rs-tests": "success",
         "web-typecheck": "success",
         "react-apps-check": "success",
         "diff-sidecar-check": "success",
@@ -318,7 +331,7 @@ def test_workflow_self_change_guard_runs_before_detector_imports() -> None:
     result, outputs = run_detect_step_for_paths(["scripts/ci/subprocess.py"])
 
     assert "CI router changed; running all CI areas." in result.stdout
-    assert outputs == ["macos=true", "web=true", "go=true", "agent_session_web=true"]
+    assert outputs == ["macos=true", "web=true", "go=true", "agent_session_web=true", "rust_remote=true"]
 
 
 def test_workflow_diff_failure_runs_all_areas() -> None:
@@ -350,6 +363,7 @@ def test_workflow_diff_failure_runs_all_areas() -> None:
             "web=true",
             "go=true",
             "agent_session_web=true",
+            "rust_remote=true",
         ]
 
 
@@ -434,6 +448,7 @@ def test_workflow_routes_from_shallow_synthetic_merge() -> None:
             "web=true",
             "go=false",
             "agent_session_web=false",
+            "rust_remote=false",
         ]
 
 
@@ -441,7 +456,7 @@ def test_workflow_empty_diff_runs_all_areas() -> None:
     result, outputs = run_detect_step_for_paths([])
 
     assert "PR diff is empty; running all CI areas." in result.stdout
-    assert outputs == ["macos=true", "web=true", "go=true", "agent_session_web=true"]
+    assert outputs == ["macos=true", "web=true", "go=true", "agent_session_web=true", "rust_remote=true"]
 
 
 def test_router_changes_run_everything() -> None:
@@ -509,6 +524,7 @@ def test_cli_writes_github_outputs() -> None:
             "web=true",
             "go=false",
             "agent_session_web=false",
+            "rust_remote=false",
         ]
 
 
@@ -536,12 +552,13 @@ def test_cli_empty_diff_runs_all_areas() -> None:
         )
 
         assert "PR diff is empty; running all CI areas." in result.stdout
-        assert "Resolved areas: macos=true web=true go=true agent_session_web=true" in result.stdout
+        assert "Resolved areas: macos=true web=true go=true agent_session_web=true rust_remote=true" in result.stdout
         assert output_path.read_text(encoding="utf-8").splitlines() == [
             "macos=true",
             "web=true",
             "go=true",
             "agent_session_web=true",
+            "rust_remote=true",
         ]
 
 
@@ -554,7 +571,7 @@ def test_non_pr_events_run_all_areas() -> None:
         stderr=subprocess.PIPE,
     )
 
-    assert "Resolved areas: macos=true web=true go=true agent_session_web=true" in result.stdout
+    assert "Resolved areas: macos=true web=true go=true agent_session_web=true rust_remote=true" in result.stdout
 
 
 def test_ci_status_job_accepts_skipped_routed_jobs() -> None:
@@ -627,6 +644,7 @@ def test_linux_preflight_blocks_macos_on_cheap_layer_failure() -> None:
     assert "      - changes" in block
     assert "      - workflow-guard-tests" in block
     assert "      - remote-daemon-tests" in block
+    assert "      - remote-daemon-rs-tests" in block
     assert "      - web-typecheck" in block
     assert "      - react-apps-check" in block
     assert "      - diff-sidecar-check" in block
@@ -730,7 +748,7 @@ def test_perf_activation_workflow_keeps_required_status_while_gating_benchmark()
     result, outputs = run_detect_step_for_paths(["docs/ci-runners.md"], PERF_ACTIVATION_WORKFLOW)
 
     assert "Resolved areas: macos=false web=false go=false" in result.stdout
-    assert outputs == ["macos=false", "web=false", "go=false", "agent_session_web=false"]
+    assert outputs == ["macos=false", "web=false", "go=false", "agent_session_web=false", "rust_remote=false"]
 
     benchmark = workflow_job_block("activation-session-benchmark", PERF_ACTIVATION_WORKFLOW)
     sentinel = workflow_job_block("activation-session", PERF_ACTIVATION_WORKFLOW)

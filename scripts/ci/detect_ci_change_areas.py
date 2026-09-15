@@ -18,10 +18,11 @@ class ChangeAreas:
     web: bool
     go: bool
     agent_session_web: bool
+    rust_remote: bool = False
 
     @classmethod
     def all(cls) -> ChangeAreas:
-        return cls(macos=True, web=True, go=True, agent_session_web=True)
+        return cls(macos=True, web=True, go=True, agent_session_web=True, rust_remote=True)
 
     def as_output_lines(self) -> list[str]:
         return [
@@ -29,6 +30,7 @@ class ChangeAreas:
             f"web={bool_output(self.web)}",
             f"go={bool_output(self.go)}",
             f"agent_session_web={bool_output(self.agent_session_web)}",
+            f"rust_remote={bool_output(self.rust_remote)}",
         ]
 
 
@@ -86,6 +88,12 @@ def is_go_change(path: str) -> bool:
     }
 
 
+def is_rust_remote_change(path: str) -> bool:
+    # The Rust port of the remote daemon has its own cargo job; it also runs
+    # the Go-vs-Rust parity harness, so Go daemon changes route here too.
+    return path.startswith(("daemon/remote-rs/", "daemon/remote/")) or path == "scripts/run-remote-daemon-rs-checks.sh"
+
+
 def is_agent_session_web_change(path: str) -> bool:
     if path.startswith(
         (
@@ -108,7 +116,7 @@ def is_agent_session_web_change(path: str) -> bool:
 def is_macos_neutral(path: str) -> bool:
     # `cmux-tui/` is the standalone cmux-tui Rust project, gated by its own `cmux-tui`
     # workflow; it never affects the macOS app build or app-host tests.
-    if path.startswith(("docs/", "design/", "plans/", "ios/", "web/", "webviews/", "daemon/remote/", "cmux-tui/")):
+    if path.startswith(("docs/", "design/", "plans/", "ios/", "web/", "webviews/", "daemon/remote/", "daemon/remote-rs/", "cmux-tui/")):
         return True
     return path == "README.md" or (path.startswith("README.") and path.endswith(".md"))
 
@@ -130,6 +138,7 @@ def classify_files(paths: Iterable[str]) -> ChangeAreas:
     web = False
     go = False
     agent_session_web = False
+    rust_remote = False
 
     for raw_path in paths:
         path = normalize_path(raw_path)
@@ -140,6 +149,7 @@ def classify_files(paths: Iterable[str]) -> ChangeAreas:
             web = True
             go = True
             agent_session_web = True
+            rust_remote = True
             continue
         if is_web_change(path):
             web = True
@@ -147,6 +157,8 @@ def classify_files(paths: Iterable[str]) -> ChangeAreas:
             go = True
         if is_agent_session_web_change(path):
             agent_session_web = True
+        if is_rust_remote_change(path):
+            rust_remote = True
         if is_macos_change(path):
             macos = True
 
@@ -155,6 +167,7 @@ def classify_files(paths: Iterable[str]) -> ChangeAreas:
         web=web,
         go=go,
         agent_session_web=agent_session_web,
+        rust_remote=rust_remote,
     )
 
 

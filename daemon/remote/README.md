@@ -2,6 +2,8 @@
 
 Go remote daemon for `cmux ssh` bootstrap, capability negotiation, and remote proxy RPC. It is not in the terminal keystroke hot path.
 
+A Rust port lives in `daemon/remote-rs` (see its README). It implements the same protocol and is validated against this binary by `daemon/remote-rs/parity/run_parity.py`; this Go binary remains the release artifact.
+
 ## Commands
 
 1. `cmuxd-remote version`
