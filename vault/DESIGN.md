@@ -2,7 +2,7 @@
 
 ## Scope
 
-Round 1 adds a standalone Go CLI, `cmux-vault`, plus authenticated web API
+Round 1 adds a standalone Rust CLI, `cmux-vault`, plus authenticated web API
 routes under `web/`. The CLI discovers Claude Code, Codex, and pi JSONL
 transcripts on disk, zstd-compresses changed files, uploads bytes directly to
 S3-compatible storage with presigned URLs, commits metadata to Postgres, and can
@@ -28,8 +28,8 @@ after warning the user.
 
 Recommended implementation: use `NWPathMonitor` in the cmux mac app, or a tiny
 Darwin sidecar, to surface `isExpensive` and `isConstrained` to the sync daemon.
-The pure Go CLI should remain portable and accept the policy decision from that
-host integration rather than guessing from interface names.
+The pure Rust CLI should remain portable and accept the policy decision from
+that host integration rather than guessing from interface names.
 
 ## Security and privacy
 
@@ -104,6 +104,6 @@ small. This also keeps Stack Auth and database conventions consistent with the
 native app backend.
 
 If `cmux-vault` becomes useful outside cmux, extraction is straightforward:
-freeze the HTTP API, move `vault/` to a new repository, keep the Go module path
-or add a compatibility module, and publish release binaries from the extracted
-repo while the `web/` API remains in cmux.
+freeze the HTTP API, move `vault/` to a new repository, keep the `cmux-vault`
+crate and binary names, and publish release binaries from the extracted repo
+while the `web/` API remains in cmux.
