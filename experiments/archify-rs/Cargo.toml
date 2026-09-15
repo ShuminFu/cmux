@@ -1,0 +1,23 @@
+[package]
+name = "archify-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+license = "MIT"
+publish = false
+description = "Rust rewrite of the archify diagram pipeline: validate, render, deliver, and visual-check self-contained HTML diagrams from typed JSON specs."
+
+[[bin]]
+name = "archify-rs"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[profile.release]
+opt-level = 2
+
+[dev-dependencies]
+serde_json = "1"
