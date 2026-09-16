@@ -67,7 +67,7 @@ impl Candidate {
     }
 
     fn key(&self) -> String {
-        item_key(&self.session.agent_name, &self.session.rel_path)
+        state::key(&self.session.agent_name, &self.session.rel_path)
     }
 
     fn remove_compressed(&self) {
@@ -196,7 +196,7 @@ impl Engine<'_> {
             }
         };
         let result_by_key: HashMap<String, UploadResult> =
-            results.items.into_iter().map(|r| (item_key(&r.agent, &r.rel_path), r)).collect();
+            results.items.into_iter().map(|r| (state::key(&r.agent, &r.rel_path), r)).collect();
 
         let mut to_upload = Vec::new();
         for c in prepared {
@@ -254,7 +254,7 @@ impl Engine<'_> {
             }
         };
         let commit_by_key: HashMap<String, CommitResult> =
-            commit.items.into_iter().map(|r| (item_key(&r.agent, &r.rel_path), r)).collect();
+            commit.items.into_iter().map(|r| (state::key(&r.agent, &r.rel_path), r)).collect();
         for c in successes {
             let result = commit_by_key.get(&c.key()).cloned().unwrap_or_default();
             if result.status != "committed" && result.status != "unchanged" {
@@ -393,10 +393,6 @@ fn upload_items(candidates: &[Candidate]) -> Vec<UploadItem> {
             compressed_size_bytes: c.compressed_size,
         })
         .collect()
-}
-
-fn item_key(agent: &str, rel_path: &str) -> String {
-    format!("{}\u{0}{}", agent.trim(), rel_path.trim())
 }
 
 pub fn sha256_file(path: &str) -> Result<String> {

@@ -22,8 +22,16 @@ pub enum Flow {
 
 pub type WalkFn<'a> = dyn FnMut(&str, Option<&WalkEntry>, Option<io::Error>) -> Flow + 'a;
 
+/// One directory child as read from disk: either a usable entry, or an entry
+/// that could not be described (undecodable name, failed type lookup) and is
+/// reported on its own so its siblings are still walked.
+enum Child {
+    Entry(WalkEntry),
+    Broken { lossy_name: String, error: io::Error },
+}
+
 /// Walk `root`, calling `f` for every entry. The callback receives the path,
-/// the entry (absent only when the root itself could not be stat'ed), and the
+/// the entry (absent when the path itself could not be described), and the
 /// error for that entry, if any.
 pub fn walk_dir(root: &str, f: &mut WalkFn<'_>) {
     match fs::symlink_metadata(root) {
@@ -57,22 +65,35 @@ fn walk_rec(path: &str, d: &WalkEntry, f: &mut WalkFn<'_>) -> Flow {
         }
     }
     for child in children {
-        let child_path = gopath::join(&[path, &child.name]);
-        if walk_rec(&child_path, &child, f) == Flow::SkipDir {
-            break;
+        match child {
+            Child::Entry(child) => {
+                let child_path = gopath::join(&[path, &child.name]);
+                if walk_rec(&child_path, &child, f) == Flow::SkipDir {
+                    break;
+                }
+            }
+            Child::Broken { lossy_name, error } => {
+                let child_path = gopath::join(&[path, &lossy_name]);
+                if f(&child_path, None, Some(error)) == Flow::SkipDir {
+                    break;
+                }
+            }
         }
     }
     Flow::Continue
 }
 
-/// Read a directory in name order, returning the entries read before any
-/// error together with that error (mirroring `os.ReadDir`).
-fn read_dir_sorted(path: &str) -> (Vec<WalkEntry>, Option<io::Error>) {
+/// Read a directory in name order. Entries that vanished between listing and
+/// type lookup are skipped (as `os.ReadDir` does); entries that cannot be
+/// described are returned as `Child::Broken` so the caller can report them
+/// without losing their siblings. Only a failure of the directory read itself
+/// is returned as the second value.
+fn read_dir_sorted(path: &str) -> (Vec<Child>, Option<io::Error>) {
     let iter = match fs::read_dir(path) {
         Ok(iter) => iter,
         Err(e) => return (Vec::new(), Some(e)),
     };
-    let mut raw: Vec<(std::ffi::OsString, WalkEntry)> = Vec::new();
+    let mut raw: Vec<(std::ffi::OsString, Child)> = Vec::new();
     let mut first_err = None;
     for item in iter {
         let entry = match item {
@@ -83,21 +104,21 @@ fn read_dir_sorted(path: &str) -> (Vec<WalkEntry>, Option<io::Error>) {
             }
         };
         let os_name = entry.file_name();
+        let lossy_name = os_name.to_string_lossy().into_owned();
         let Some(name) = os_name.to_str().map(str::to_string) else {
-            first_err = Some(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}: file name is not valid UTF-8", os_name.to_string_lossy()),
-            ));
-            break;
+            let error = io::Error::new(io::ErrorKind::InvalidData, "file name is not valid UTF-8");
+            raw.push((os_name, Child::Broken { lossy_name, error }));
+            continue;
         };
         let (is_dir, is_symlink) = match entry.file_type() {
             Ok(ft) => (ft.is_dir(), ft.is_symlink()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
             Err(e) => {
-                first_err = Some(e);
-                break;
+                raw.push((os_name, Child::Broken { lossy_name, error: e }));
+                continue;
             }
         };
-        raw.push((os_name, WalkEntry { name, is_dir, is_symlink }));
+        raw.push((os_name, Child::Entry(WalkEntry { name, is_dir, is_symlink })));
     }
     raw.sort_by(|a, b| a.0.cmp(&b.0));
     (raw.into_iter().map(|(_, e)| e).collect(), first_err)

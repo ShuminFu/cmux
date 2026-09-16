@@ -146,7 +146,7 @@ pub(crate) fn resolve_walk_root(env: &Environ, agent_name: &str, path: &str) -> 
     match std::fs::canonicalize(path) {
         Ok(resolved) => {
             if let Some(resolved) = resolved.to_str() {
-                resolved.to_string()
+                strip_verbatim_prefix(resolved).to_string()
             } else {
                 env.warn(format!(
                     "{agent_name}: using literal walk root {path} after symlink resolution produced a non-UTF-8 path"
@@ -163,6 +163,20 @@ pub(crate) fn resolve_walk_root(env: &Environ, agent_name: &str, path: &str) -> 
             path.to_string()
         }
     }
+}
+
+/// `std::fs::canonicalize` returns verbatim (`\\?\`) paths on Windows, which
+/// the lexical helpers would mangle; Go's `EvalSymlinks` returned plain drive
+/// paths, so normalize drive-letter paths back to that shape. Verbatim UNC
+/// paths are left untouched. No-op on other platforms.
+fn strip_verbatim_prefix(path: &str) -> &str {
+    if cfg!(windows)
+        && !path.starts_with(r"\\?\UNC\")
+        && let Some(rest) = path.strip_prefix(r"\\?\")
+    {
+        return rest;
+    }
+    path
 }
 
 pub(crate) fn logical_walk_path(literal_root: &str, resolved_root: &str, path: &str) -> String {
