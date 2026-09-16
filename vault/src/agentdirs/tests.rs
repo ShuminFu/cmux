@@ -348,3 +348,27 @@ fn shell_quote_escapes_single_quotes() {
     assert_eq!(shell_quote("/a b"), "'/a b'");
     assert_eq!(shell_quote("it's"), "'it'\\''s'");
 }
+
+#[cfg(unix)]
+#[test]
+fn walk_skips_only_the_undecodable_or_vanished_entry() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    let (_keep, home) = tmp();
+    let project = format!("{home}/.claude/projects/-Users-me-work");
+    write_file(&format!("{project}/{UUID_A}.jsonl"), "{\"cwd\":\"/a\"}\n");
+    write_file(&format!("{project}/{UUID_B}.jsonl"), "{\"cwd\":\"/b\"}\n");
+    // A sibling whose name is not valid UTF-8 must not hide the sessions next to it.
+    let bad_name = OsStr::from_bytes(b"bad-\xe9-name.txt");
+    fs::write(std::path::Path::new(&project).join(bad_name), "x").unwrap();
+
+    let env = env_with(&home, &[]);
+    let got = Claude.discover(&env).unwrap();
+    assert_eq!(got.len(), 2, "{got:#?}");
+    assert_eq!(find_session(&got, UUID_A).cwd, "/a");
+    assert_eq!(find_session(&got, UUID_B).cwd, "/b");
+    let warnings = env.warnings();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("not valid UTF-8"), "{warnings:?}");
+}
