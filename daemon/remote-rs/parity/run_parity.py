@@ -80,7 +80,7 @@ def normalize_rpc_output(lines: list[str]) -> dict[str, Any]:
             continue
         if "event" in obj:
             event = obj["event"]
-            if event in ("pty.data", "proxy.data") and "data_base64" in obj:
+            if event in ("pty.data", "proxy.stream.data") and "data_base64" in obj:
                 key = (event, obj.get("session_id", ""), obj.get("attachment_id", ""), obj.get("stream_id", ""))
                 entry = merged.get(key)
                 data = base64.b64decode(obj["data_base64"])
@@ -502,16 +502,33 @@ def pty_exit_code_steps() -> list[Any]:
     ]
 
 
+def merged_stream_data(lines: list[Any]) -> str:
+    out = ""
+    for l in lines:
+        if isinstance(l, dict) and l.get("event") == "proxy.stream.data" and "data_base64" in l:
+            out += base64.b64decode(l["data_base64"]).decode("utf-8", "replace")
+    return out
+
+
 def proxy_steps(port: int) -> list[Any]:
     payload = base64.b64encode(b"GET / HTTP/1.0\r\n\r\n").decode()
+
+    def stream_id_of(lines: list[Any]) -> str:
+        return str(response_for(lines, 1).get("result", {}).get("stream_id", ""))
+
     return [
         ("send", rpc(1, "proxy.open", {"host": "127.0.0.1", "port": port})),
         ("wait", lambda lines: has_response(lines, 1), "open"),
-        ("send_fn", lambda lines: rpc(2, "proxy.write", {"stream_id": str(response_for(lines, 1).get("result", {}).get("stream_id", "")), "data_base64": payload})),
+        ("send_fn", lambda lines: rpc(10, "proxy.stream.subscribe", {"stream_id": stream_id_of(lines)})),
+        ("wait", lambda lines: has_response(lines, 10), "subscribe"),
+        ("send_fn", lambda lines: rpc(2, "proxy.write", {"stream_id": stream_id_of(lines), "data_base64": payload})),
         ("wait", lambda lines: has_response(lines, 2), "write"),
-        ("wait", lambda lines: any(isinstance(l, dict) and l.get("event") in ("proxy.closed", "proxy.close", "proxy.eof", "proxy.end") for l in lines) or "OK" in "".join(base64.b64decode(l["data_base64"]).decode("utf-8", "replace") for l in lines if isinstance(l, dict) and l.get("event") == "proxy.data"), "data"),
-        ("sleep", 0.3),
-        ("send_fn", lambda lines: rpc(3, "proxy.close", {"stream_id": str(response_for(lines, 1).get("result", {}).get("stream_id", ""))})),
+        # The upstream answers then closes, so the daemon must push the data
+        # (possibly chunked; merged by normalize_rpc_output) and then EOF.
+        ("wait", lambda lines: has_event(lines, "proxy.stream.eof") and "OK" in merged_stream_data(lines), "data + eof"),
+        ("send_fn", lambda lines: rpc(11, "proxy.stream.subscribe", {"stream_id": stream_id_of(lines)})),
+        ("wait", lambda lines: has_response(lines, 11), "subscribe after eof"),
+        ("send_fn", lambda lines: rpc(3, "proxy.close", {"stream_id": stream_id_of(lines)})),
         ("wait", lambda lines: has_response(lines, 3), "close"),
         ("send", rpc(4, "proxy.open", {"host": "127.0.0.1", "port": 1})),
         ("wait", lambda lines: has_response(lines, 4), "open refused"),

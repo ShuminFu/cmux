@@ -6,7 +6,7 @@ use std::io::{self, BufRead, Read, Write};
 use std::net::{Shutdown, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use base64::Engine;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -831,18 +831,16 @@ impl RpcServer {
         if let Some(parsed) = get_int_param(req.params(), "timeout_ms") {
             timeout_ms = parsed;
         }
-        let mut deadline_set = false;
-        if timeout_ms > 0 {
-            if let Err(err) = conn
-                .io
-                .set_write_timeout(Some(Duration::from_millis(timeout_ms as u64)))
-            {
-                return RpcResponse::err(req.id.clone(), "stream_error", err.to_string());
-            }
-            deadline_set = true;
-        }
-        let response = write_all_progress(&*conn.io, &payload, req.id.clone());
-        if deadline_set {
+        // Go sets one absolute write deadline for the whole payload. A
+        // per-syscall SO_SNDTIMEO would let a slow peer stretch a large write
+        // to many multiples of timeout_ms while the RPC loop is blocked.
+        let deadline = if timeout_ms > 0 {
+            Some(Instant::now() + Duration::from_millis(timeout_ms as u64))
+        } else {
+            None
+        };
+        let response = write_all_progress(&*conn.io, &payload, req.id.clone(), deadline);
+        if deadline.is_some() {
             let _ = conn.io.set_write_timeout(None);
         }
         response
@@ -1442,9 +1440,23 @@ impl RpcServer {
     }
 }
 
-fn write_all_progress(io: &dyn ProxyStream, payload: &[u8], id: Option<Value>) -> RpcResponse {
+fn write_all_progress(
+    io: &dyn ProxyStream,
+    payload: &[u8],
+    id: Option<Value>,
+    deadline: Option<Instant>,
+) -> RpcResponse {
     let mut total = 0;
     while total < payload.len() {
+        if let Some(deadline) = deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return RpcResponse::err(id, "stream_error", "write tcp: i/o timeout");
+            }
+            if let Err(err) = io.set_write_timeout(Some(remaining)) {
+                return RpcResponse::err(id, "stream_error", err.to_string());
+            }
+        }
         match io.write(&payload[total..]) {
             Ok(0) => return RpcResponse::err(id, "stream_error", "write made no progress"),
             Ok(n) => total += n,

@@ -89,7 +89,8 @@ fn other_error(message: impl Into<String>) -> io::Error {
 
 pub fn persistent_daemon_paths_for_slot(raw_slot: &str) -> io::Result<PersistentDaemonPaths> {
     let slot = validate_persistent_daemon_slot(raw_slot)?;
-    let mut root_base = std::env::var("CMUX_REMOTE_DAEMON_ROOT")
+    let mut root_base = crate::util::env_var("CMUX_REMOTE_DAEMON_ROOT")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string();
@@ -152,7 +153,8 @@ pub fn persistent_daemon_socket_path(root: &str, slot: &str) -> String {
 }
 
 fn persistent_daemon_socket_base() -> Option<String> {
-    let base = std::env::var("CMUX_REMOTE_DAEMON_SOCKET_DIR")
+    let base = crate::util::env_var("CMUX_REMOTE_DAEMON_SOCKET_DIR")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string();
@@ -442,10 +444,10 @@ pub fn proxy_persistent_daemon_conn(
 fn persistent_proxy_copy_error(result: io::Result<()>) -> io::Result<()> {
     match result {
         Ok(()) => Ok(()),
+        // Go ignores net.ErrClosed / os.ErrClosed / io.ErrClosedPipe / EPIPE
+        // only. A reset (daemon died mid-session) must surface as a failure.
         Err(err) => match err.kind() {
-            io::ErrorKind::BrokenPipe
-            | io::ErrorKind::NotConnected
-            | io::ErrorKind::ConnectionReset => Ok(()),
+            io::ErrorKind::BrokenPipe | io::ErrorKind::NotConnected => Ok(()),
             _ if err.raw_os_error() == Some(libc::EBADF) => Ok(()),
             _ => Err(err),
         },
@@ -478,7 +480,10 @@ fn ensure_persistent_daemon_running(
         .append(true)
         .mode(0o600)
         .open(&paths.log_file)?;
-    let (ready_read, ready_write) = nix::unistd::pipe().map_err(io::Error::from)?;
+    // O_CLOEXEC mirrors Go's os.Pipe: only the dup2'd copy on fd 3 survives
+    // exec, so the daemon and its shells do not inherit stray pipe ends.
+    let (ready_read, ready_write) =
+        nix::unistd::pipe2(nix::fcntl::OFlag::O_CLOEXEC).map_err(io::Error::from)?;
 
     let mut cmd = Command::new(executable);
     cmd.args(persistent_daemon_server_arguments(&paths.slot, lease_port));
@@ -653,7 +658,8 @@ fn run_persistent_daemon_server_locked(
 }
 
 pub fn signal_persistent_daemon_ready() {
-    let raw_fd = std::env::var(PERSISTENT_DAEMON_READY_FD_ENV)
+    let raw_fd = crate::util::env_var(PERSISTENT_DAEMON_READY_FD_ENV)
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string();

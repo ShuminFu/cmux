@@ -983,3 +983,83 @@ fn persistent_stdio_proxy_spawns_daemon_and_round_trips() {
     let (code, _, err) = run_daemon(&["serve", "--persistent-stop", "--slot", &slot], "");
     assert_eq!(code, 0, "stop stderr = {err:?}");
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn persistent_daemon_shells_do_not_inherit_readiness_pipe() {
+    // Regression: the daemon readiness pipe must be O_CLOEXEC so neither the
+    // persistent daemon nor the shells it spawns inherit stray pipe ends.
+    // A shell's `ls /proc/self/fd` must therefore show only 0-3 (3 is ls's
+    // own directory handle).
+    let mut env = EnvGuard::new();
+    let root = temp_dir("cmuxd-root-");
+    let socket_base = short_temp_dir("cmuxd-remote-fd-");
+    env.set("CMUX_REMOTE_DAEMON_ROOT", &root.path().to_string_lossy());
+    env.set(
+        "CMUX_REMOTE_DAEMON_SOCKET_DIR",
+        &socket_base.path().to_string_lossy(),
+    );
+    let slot = format!("fds-{}", cmuxd_remote::util::random_hex(4));
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_cmuxd-remote"))
+        .args(["serve", "--stdio", "--persistent", "--slot", &slot])
+        .env("CMUX_REMOTE_DAEMON_ROOT", root.path())
+        .env("CMUX_REMOTE_DAEMON_SOCKET_DIR", socket_base.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn proxy");
+    let mut stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    stdin
+        .write_all(
+            b"{\"id\":1,\"method\":\"pty.attach\",\"params\":{\"session_id\":\"fds\",\"client_attachment_token\":\"fd-token\",\"cols\":80,\"rows\":24,\"command\":\"ls /proc/self/fd; exit\"}}\n",
+        )
+        .unwrap();
+    let (tx, rx) = flume::unbounded::<String>();
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            match line {
+                Ok(line) => {
+                    let _ = tx.send(line);
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut output = Vec::new();
+    let mut exited = false;
+    while !exited {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        let line = rx
+            .recv_timeout(remaining)
+            .expect("timed out waiting for pty.exit from the persistent daemon");
+        let frame = parse_json_map(line.trim());
+        match frame.get("event").and_then(|v| v.as_str()) {
+            Some("pty.data") => {
+                output.extend(base64_decode(map_str(&frame, "data_base64")));
+            }
+            Some("pty.exit") => exited = true,
+            _ => {}
+        }
+    }
+    drop(stdin);
+    let _ = child.wait();
+    let (code, _, err) = run_daemon(&["serve", "--persistent-stop", "--slot", &slot], "");
+    assert_eq!(code, 0, "stop stderr = {err:?}");
+
+    let text = String::from_utf8_lossy(&output).replace('\r', "");
+    let mut fds: Vec<i32> = text
+        .split_whitespace()
+        .filter_map(|token| token.parse::<i32>().ok())
+        .collect();
+    fds.sort_unstable();
+    fds.dedup();
+    assert_eq!(
+        fds,
+        vec![0, 1, 2, 3],
+        "shell inherited extra descriptors; ls output = {text:?}"
+    );
+}

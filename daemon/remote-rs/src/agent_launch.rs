@@ -111,7 +111,7 @@ pub fn run_claude_teams_relay(
 
     // Resolve the agent executable BEFORE modifying PATH (so the shim
     // directory doesn't shadow anything).
-    let original_path = std::env::var("PATH").unwrap_or_default();
+    let original_path = crate::util::env_var_or_default("PATH");
     let claude_path = find_executable_in_path("claude", &original_path, &shim_dir);
 
     let focused = get_focused_context(&rc);
@@ -168,7 +168,7 @@ pub fn run_omo_relay(
         }
     };
 
-    let original_path = std::env::var("PATH").unwrap_or_default();
+    let original_path = crate::util::env_var_or_default("PATH");
     let opencode_path = find_executable_in_path("opencode", &original_path, &shim_dir);
     if opencode_path.is_empty() {
         let _ = write!(
@@ -195,11 +195,12 @@ pub fn run_omo_relay(
         extra_env: HashMap::new(),
     });
 
-    if std::env::var("OPENCODE_PORT")
+    if crate::util::env_var("OPENCODE_PORT")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .is_empty()
     {
-        std::env::set_var("OPENCODE_PORT", "4096");
+        crate::util::env_set("OPENCODE_PORT", "4096");
     }
 
     let mut launch_args: Vec<String> = args.to_vec();
@@ -207,7 +208,7 @@ pub fn run_omo_relay(
         .iter()
         .any(|arg| arg == "--port" || arg.starts_with("--port="));
     if !has_port {
-        let mut port = std::env::var("OPENCODE_PORT").unwrap_or_default();
+        let mut port = crate::util::env_var_or_default("OPENCODE_PORT");
         if port.is_empty() {
             port = "4096".to_string();
         }
@@ -246,7 +247,7 @@ pub fn run_omx_relay(
         }
     };
 
-    let original_path = std::env::var("PATH").unwrap_or_default();
+    let original_path = crate::util::env_var_or_default("PATH");
     let omx_path = find_executable_in_path("omx", &original_path, &shim_dir);
     if omx_path.is_empty() {
         let _ = write!(
@@ -298,7 +299,7 @@ pub fn run_omc_relay(
         }
     };
 
-    let original_path = std::env::var("PATH").unwrap_or_default();
+    let original_path = crate::util::env_var_or_default("PATH");
     let omc_path = find_executable_in_path("omc", &original_path, &shim_dir);
     if omc_path.is_empty() {
         let _ = write!(io.stderr, "cmux omc: omc not found in PATH\nInstall it first:\n  npm install -g oh-my-claude-sisyphus\n");
@@ -511,18 +512,18 @@ pub fn canonicalize_focused_context(
 }
 
 pub fn configure_claude_node_options(restore_module_path: &str) {
-    let existing = std::env::var("NODE_OPTIONS").ok();
+    let existing = crate::util::env_var("NODE_OPTIONS");
     match &existing {
         Some(value) => {
-            std::env::set_var("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1");
-            std::env::set_var("CMUX_ORIGINAL_NODE_OPTIONS", value);
+            crate::util::env_set("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1");
+            crate::util::env_set("CMUX_ORIGINAL_NODE_OPTIONS", value);
         }
         None => {
-            std::env::set_var("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0");
-            std::env::remove_var("CMUX_ORIGINAL_NODE_OPTIONS");
+            crate::util::env_set("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0");
+            crate::util::env_remove("CMUX_ORIGINAL_NODE_OPTIONS");
         }
     }
-    std::env::set_var(
+    crate::util::env_set(
         "NODE_OPTIONS",
         merge_node_options(existing.as_deref().unwrap_or(""), restore_module_path),
     );
@@ -596,11 +597,11 @@ pub fn configure_agent_environment(cfg: &AgentConfig) {
     if self_path.is_empty() {
         self_path = "cmux".to_string();
     }
-    std::env::set_var(&cfg.cmux_bin_env_var, self_path);
+    crate::util::env_set(&cfg.cmux_bin_env_var, self_path);
 
     // Prepend shim directory to PATH
-    let current_path = std::env::var("PATH").unwrap_or_default();
-    std::env::set_var("PATH", format!("{}:{}", cfg.shim_dir, current_path));
+    let current_path = crate::util::env_var_or_default("PATH");
+    crate::util::env_set("PATH", format!("{}:{}", cfg.shim_dir, current_path));
 
     // Set fake TMUX/TMUX_PANE
     let mut fake_tmux = format!("/tmp/{}/default,0,0", cfg.tmux_path_prefix);
@@ -621,39 +622,39 @@ pub fn configure_agent_environment(cfg: &AgentConfig) {
         );
         fake_tmux_pane = format!("%{pane_token}");
     }
-    std::env::set_var("TMUX", fake_tmux);
-    std::env::set_var("TMUX_PANE", fake_tmux_pane);
+    crate::util::env_set("TMUX", fake_tmux);
+    crate::util::env_set("TMUX_PANE", fake_tmux_pane);
 
     // Terminal settings
-    let mut fake_term = std::env::var(&cfg.term_env_var).unwrap_or_default();
+    let mut fake_term = crate::util::env_var_or_default(&cfg.term_env_var);
     if fake_term.is_empty() {
         fake_term = "screen-256color".to_string();
     }
-    std::env::set_var("TERM", fake_term);
+    crate::util::env_set("TERM", fake_term);
 
     // Socket path
-    std::env::set_var("CMUX_SOCKET_PATH", &cfg.socket_path);
-    std::env::remove_var("CMUX_SOCKET");
+    crate::util::env_set("CMUX_SOCKET_PATH", &cfg.socket_path);
+    crate::util::env_remove("CMUX_SOCKET");
 
     // Unset TERM_PROGRAM so apps don't detect the host terminal and override
     // tmux-compatible behavior.
-    std::env::remove_var("TERM_PROGRAM");
+    crate::util::env_remove("TERM_PROGRAM");
 
     // Preserve COLORTERM for truecolor support in subagent panes.
-    if std::env::var("COLORTERM").unwrap_or_default().is_empty() {
-        std::env::set_var("COLORTERM", "truecolor");
+    if crate::util::env_var_or_default("COLORTERM").is_empty() {
+        crate::util::env_set("COLORTERM", "truecolor");
     }
 
     // Set workspace/surface IDs from focused context
     if let Some(focused) = &cfg.focused {
-        std::env::set_var("CMUX_WORKSPACE_ID", &focused.workspace_id);
+        crate::util::env_set("CMUX_WORKSPACE_ID", &focused.workspace_id);
         if !focused.surface_id.is_empty() {
-            std::env::set_var("CMUX_SURFACE_ID", &focused.surface_id);
+            crate::util::env_set("CMUX_SURFACE_ID", &focused.surface_id);
         }
     }
 
     for (k, v) in &cfg.extra_env {
-        std::env::set_var(k, v);
+        crate::util::env_set(k, v);
     }
 }
 
@@ -846,7 +847,7 @@ pub fn omo_ensure_plugin(search_path: &str, stderr: &mut dyn Write) -> Result<()
         let _ = fs::write(&omo_config_path, data.as_bytes());
     }
 
-    std::env::set_var("OPENCODE_CONFIG_DIR", &shadow_dir);
+    crate::util::env_set("OPENCODE_CONFIG_DIR", &shadow_dir);
     Ok(())
 }
 

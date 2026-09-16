@@ -199,7 +199,7 @@ pub fn browser_commands() -> HashMap<&'static str, BrowserCommandSpec> {
 
 /// Entry point for the `cli` subcommand (or busybox `cmux` invocation).
 pub fn run_cli(args: &[String], io: &mut CliIo<'_>) -> i32 {
-    let mut socket_path = std::env::var("CMUX_SOCKET_PATH").unwrap_or_default();
+    let mut socket_path = crate::util::env_var_or_default("CMUX_SOCKET_PATH");
     let mut json_output = false;
     let mut remaining: Vec<String> = Vec::new();
     let mut i = 0;
@@ -1098,7 +1098,9 @@ pub fn apply_workspace_env_fallback(params: &mut Map<String, Value>) {
     if params.contains_key("workspace_id") {
         return;
     }
-    if let Ok(env_ws) = std::env::var("CMUX_WORKSPACE_ID") {
+    if let Ok(env_ws) =
+        crate::util::env_var("CMUX_WORKSPACE_ID").ok_or(std::env::VarError::NotPresent)
+    {
         if !env_ws.is_empty() {
             params.insert("workspace_id".to_string(), Value::String(env_ws));
         }
@@ -1109,7 +1111,9 @@ pub fn apply_surface_env_fallback(params: &mut Map<String, Value>) {
     if params.contains_key("surface_id") {
         return;
     }
-    if let Ok(env_sf) = std::env::var("CMUX_SURFACE_ID") {
+    if let Ok(env_sf) =
+        crate::util::env_var("CMUX_SURFACE_ID").ok_or(std::env::VarError::NotPresent)
+    {
         if !env_sf.is_empty() {
             params.insert("surface_id".to_string(), Value::String(env_sf));
         }
@@ -1285,11 +1289,13 @@ pub fn read_relay_auth_file(socket_path: &str) -> Option<RelayAuthState> {
 }
 
 pub fn current_relay_auth(socket_path: &str) -> Option<RelayAuthState> {
-    let relay_id = std::env::var("CMUX_RELAY_ID")
+    let relay_id = crate::util::env_var("CMUX_RELAY_ID")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string();
-    let relay_token = std::env::var("CMUX_RELAY_TOKEN")
+    let relay_token = crate::util::env_var("CMUX_RELAY_TOKEN")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string();

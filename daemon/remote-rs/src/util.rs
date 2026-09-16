@@ -32,7 +32,7 @@ pub fn set_version(value: &str) {
 
 /// Go's `os.UserHomeDir` on Unix: `$HOME`, error when unset or empty.
 pub fn home_dir() -> Option<String> {
-    let home = std::env::var("HOME").ok()?;
+    let home = crate::util::env_var("HOME")?;
     if home.trim().is_empty() {
         return None;
     }
@@ -41,7 +41,7 @@ pub fn home_dir() -> Option<String> {
 
 /// Go's `os.TempDir` on Unix: `$TMPDIR` else `/tmp`.
 pub fn temp_dir() -> PathBuf {
-    match std::env::var("TMPDIR") {
+    match crate::util::env_var("TMPDIR").ok_or(std::env::VarError::NotPresent) {
         Ok(dir) if !dir.is_empty() => PathBuf::from(dir),
         _ => PathBuf::from("/tmp"),
     }
@@ -722,6 +722,50 @@ pub fn accept_unix_with_stop(
             PollOutcome::Timeout | PollOutcome::Woken => return Ok(None),
         }
     }
+}
+
+// --- process environment, serialized like Go's os.Getenv/os.Setenv ---
+//
+// glibc's setenv may reallocate `environ` while another thread's getenv walks
+// it. Worker threads abandoned after a relay timeout (see agent_launch.rs) can
+// still be reading the environment while agent launch rewrites it, so every
+// env access in the crate goes through this lock.
+
+fn env_lock() -> &'static std::sync::RwLock<()> {
+    static LOCK: OnceLock<std::sync::RwLock<()>> = OnceLock::new();
+    LOCK.get_or_init(|| std::sync::RwLock::new(()))
+}
+
+pub fn env_var(key: &str) -> Option<String> {
+    let _guard = env_lock()
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    std::env::var(key).ok()
+}
+
+pub fn env_var_or_default(key: &str) -> String {
+    env_var(key).unwrap_or_default()
+}
+
+pub fn env_vars_os() -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+    let _guard = env_lock()
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    std::env::vars_os().collect()
+}
+
+pub fn env_set(key: &str, value: impl AsRef<str>) {
+    let _guard = env_lock()
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    std::env::set_var(key, value.as_ref());
+}
+
+pub fn env_remove(key: &str) {
+    let _guard = env_lock()
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    std::env::remove_var(key);
 }
 
 /// Render an I/O error the way Go's `syscall.Errno` / `os.PathError` would

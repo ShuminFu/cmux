@@ -505,6 +505,11 @@ pub fn default_pty_opener() -> PtyOpener {
                 format!("open /dev/ptmx: {err}"),
             )
         })?;
+        // Go opens /dev/ptmx and the tty through os.OpenFile, which is always
+        // O_CLOEXEC; nix::openpty is not. Without this every shell spawned on
+        // the PTY inherits the master and slave descriptors.
+        set_cloexec(&pair.master)?;
+        set_cloexec(&pair.slave)?;
         Ok((pair.master, pair.slave))
     })
 }
@@ -1303,11 +1308,17 @@ impl PtyHub {
             }
         };
         let mut buffer = vec![0u8; 32768];
-        while let Ok(n) = pty.read(&mut buffer) {
-            if n > 0 {
-                let chunk = buffer[..n].to_vec();
-                self.record_and_broadcast(session, &chunk);
-                self.confirm_pty_size_after_output(session);
+        loop {
+            // Go's os.File.Read reports a 0-byte read as io.EOF. Linux signals
+            // PTY hangup with EIO, but macOS/BSD return 0; treating 0 as
+            // "keep polling" would spin forever on a hung-up master.
+            match pty.read(&mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    let chunk = buffer[..n].to_vec();
+                    self.record_and_broadcast(session, &chunk);
+                    self.confirm_pty_size_after_output(session);
+                }
             }
         }
         self.finish_session(session);
@@ -1827,7 +1838,7 @@ pub fn resolve_pty_shell(explicit: &str) -> String {
     if !explicit.trim().is_empty() {
         return explicit.to_string();
     }
-    if let Ok(shell) = std::env::var("SHELL") {
+    if let Ok(shell) = crate::util::env_var("SHELL").ok_or(std::env::VarError::NotPresent) {
         let shell = shell.trim();
         if !shell.is_empty() && fs::metadata(shell).is_ok() {
             return shell.to_string();
@@ -1844,7 +1855,8 @@ pub fn resolve_pty_shell(explicit: &str) -> String {
 /// Build the PTY child environment: inherit the daemon environment, force
 /// terminal identity, and seed a UTF-8 locale when none is configured.
 pub fn default_websocket_pty_env(shell_path: &str) -> Vec<(String, String)> {
-    let raw: Vec<String> = std::env::vars_os()
+    let raw: Vec<String> = crate::util::env_vars_os()
+        .into_iter()
         .map(|(key, value)| format!("{}={}", key.to_string_lossy(), value.to_string_lossy()))
         .collect();
     let (mut env, mut order) = env_map_with_order(&raw);

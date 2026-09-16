@@ -23,6 +23,12 @@ done
 
 export PATH="$HOME/.cargo/bin:$PATH"
 
+# install-rust-ci.sh may bootstrap a --profile minimal toolchain, which ships
+# without rustfmt/clippy; make sure both components exist before using them.
+if command -v rustup >/dev/null 2>&1; then
+  rustup component add rustfmt clippy >/dev/null 2>&1 || rustup component add rustfmt clippy
+fi
+
 echo "==> cargo fmt --check"
 cargo fmt --manifest-path "$MANIFEST" --all -- --check
 

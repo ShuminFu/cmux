@@ -285,8 +285,8 @@ fn run_serve(
             let _ = writeln!(err_sink, "serve --ws requires --auth-lease-file");
             return 2;
         }
-        let env_admin_token = std::env::var("CMUXD_WS_ADMIN_TOKEN_SHA256").unwrap_or_default();
-        let env_admin_key = std::env::var("CMUXD_WS_ADMIN_ED25519_PUBLIC_KEY").unwrap_or_default();
+        let env_admin_token = crate::util::env_var_or_default("CMUXD_WS_ADMIN_TOKEN_SHA256");
+        let env_admin_key = crate::util::env_var_or_default("CMUXD_WS_ADMIN_ED25519_PUBLIC_KEY");
         let cfg = WsServerConfig {
             listen_addr: flags.listen.trim().to_string(),
             pty_auth_lease_file: flags.auth_lease_file.trim().to_string(),

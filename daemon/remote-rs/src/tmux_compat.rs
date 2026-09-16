@@ -590,7 +590,7 @@ pub fn tmux_path_from_object(item: &Map<String, Value>) -> String {
 }
 
 pub fn tmux_fallback_current_path() -> String {
-    let pwd = std::env::var("PWD").unwrap_or_default();
+    let pwd = crate::util::env_var_or_default("PWD");
     let path = tmux_normalize_path(&pwd);
     if !path.is_empty() {
         return path;
@@ -613,14 +613,16 @@ pub fn tmux_fallback_current_path() -> String {
 // --- Target resolution ---
 
 pub fn tmux_caller_workspace_handle() -> String {
-    std::env::var("CMUX_WORKSPACE_ID")
+    crate::util::env_var("CMUX_WORKSPACE_ID")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string()
 }
 
 pub fn tmux_caller_surface_handle() -> String {
-    std::env::var("CMUX_SURFACE_ID")
+    crate::util::env_var("CMUX_SURFACE_ID")
+        .ok_or(std::env::VarError::NotPresent)
         .unwrap_or_default()
         .trim()
         .to_string()
@@ -658,7 +660,7 @@ pub fn tmux_active_workspace_id(rc: &RpcContext) -> String {
 
 pub fn tmux_caller_pane_handle() -> String {
     for key in ["TMUX_PANE", "CMUX_PANE_ID"] {
-        let v = std::env::var(key).unwrap_or_default().trim().to_string();
+        let v = crate::util::env_var_or_default(key).trim().to_string();
         if !v.is_empty() {
             return v.strip_prefix('%').unwrap_or(&v).to_string();
         }

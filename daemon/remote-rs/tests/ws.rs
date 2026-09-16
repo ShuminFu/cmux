@@ -1883,3 +1883,64 @@ fn normalize_pty_size_and_lease_fuzz_seeds() {
 
 #[allow(dead_code)]
 fn silence_unused(_: &dyn FrameWriter) {}
+
+#[test]
+fn pump_session_finishes_on_zero_byte_read() {
+    // Regression: a 0-byte read from the PTY master is EOF (macOS/BSD report
+    // hangup that way; Linux uses EIO). The pump must finish the session
+    // instead of spinning on a readable-but-empty descriptor.
+    let (read_fd, write_fd) = nix::unistd::pipe().unwrap();
+    let hub = PtyHub::new(
+        PtyHubConfig {
+            shell: "/bin/sh".to_string(),
+            scrollback_limit: 4096,
+            session_idle_ttl: None,
+        },
+        None,
+    );
+    let master = Arc::new(PtyMaster::new(read_fd).unwrap());
+    let key = persistent_pty_session_key("sess-eof");
+    let attachment = PtyAttachment::new_for_test(
+        key.clone(),
+        "att-eof",
+        "token-1",
+        80,
+        24,
+        DEFAULT_WEBSOCKET_WRITE_QUEUE_CAP,
+        true,
+        false,
+    );
+    let session = PtySession::new_for_test(
+        "sess-eof",
+        key,
+        Some(master),
+        vec![Arc::clone(&attachment)],
+        80,
+        24,
+        true,
+    );
+    hub.insert_session_for_test(Arc::clone(&session));
+
+    let pump = {
+        let hub = Arc::clone(&hub);
+        let session = Arc::clone(&session);
+        std::thread::spawn(move || hub.pump_session(&session))
+    };
+    let mut writer = fs::File::from(write_fd);
+    use std::io::Write as _;
+    writer.write_all(b"last words").unwrap();
+    drop(writer);
+
+    assert!(
+        join_with_timeout(pump, Duration::from_secs(3)).is_some(),
+        "pump_session kept polling after the PTY master hit EOF"
+    );
+    assert!(
+        session.done.is_closed(),
+        "session.done should close once the pump finishes"
+    );
+    assert!(
+        wait_until(Duration::from_secs(3), || hub.active_session_count() == 0),
+        "session should be reaped after EOF"
+    );
+}
