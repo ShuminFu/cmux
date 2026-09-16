@@ -1,7 +1,7 @@
 {
   "artifact": {
-    "bytes": 47166,
-    "sha256": "cf9564c71c60b1279360d996a472e7ed7ede58ef31a9eb2b30a054dbeb7677dc"
+    "bytes": 47378,
+    "sha256": "74620cbdd0b90262a3dee294dc8901d7f4f9b224c66c713407fca17ff1365c89"
   },
   "checks": [
     {
@@ -53,9 +53,9 @@
     }
   ],
   "command": "deliver",
-  "input": "experiments/archify-rs/examples/archify-rs.architecture.json",
+  "input": "examples/archify-rs.architecture.json",
   "ok": true,
-  "output": "experiments/archify-rs/docs/archify-rs.html",
+  "output": "docs/archify-rs.html",
   "quality": "showcase",
   "schemaVersion": 1,
   "specification": {

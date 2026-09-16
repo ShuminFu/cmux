@@ -220,7 +220,10 @@ experiments/archify-rs/src/visual.rs:169 — calibrated measure</title><g class=
   try { forced = new URLSearchParams(location.search).get('theme'); } catch (e) {}
   var stored = null;
   try { stored = localStorage.getItem('archify-rs-theme'); } catch (e) {}
-  applyTheme(forced || stored || 'system');
+  // A host that stamps data-theme on <html> (an embedding viewer) wins over
+  // the default; an explicit reader choice on this page still wins over it.
+  var hosted = root.getAttribute('data-theme');
+  applyTheme(forced || stored || hosted || 'system');
   document.querySelectorAll('[data-theme-choice]').forEach(function (b) {
     b.addEventListener('click', function () { applyTheme(b.getAttribute('data-theme-choice')); });
   });
