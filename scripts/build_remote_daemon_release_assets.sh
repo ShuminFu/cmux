@@ -10,8 +10,9 @@ Usage: scripts/build_remote_daemon_release_assets.sh \
   --output-dir <dir> \
   [--asset-suffix <suffix>]
 
-Builds cmuxd-remote release assets for the supported remote platforms and emits:
-  cmuxd-remote-<goos>-<goarch>[-<suffix>]
+Cross-compiles the Rust cmuxd-remote daemon (daemon/remote) with
+cargo-zigbuild for the supported remote platforms and emits:
+  cmuxd-remote-<os>-<arch>[-<suffix>]
   cmuxd-remote-checksums[-<suffix>].txt
   cmuxd-remote-manifest[-<suffix>].json
 
@@ -67,25 +68,23 @@ if [[ -z "$VERSION" || -z "$RELEASE_TAG" || -z "$REPO" || -z "$OUTPUT_DIR" ]]; t
   exit 1
 fi
 
-if ! command -v go >/dev/null 2>&1; then
-  echo "error: go is required to build cmuxd-remote release assets" >&2
-  exit 1
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DAEMON_ROOT="${REPO_ROOT}/daemon/remote"
+export PATH="$HOME/.cargo/bin:$PATH"
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "error: cargo is required to build cmuxd-remote release assets (see scripts/install-remote-daemon-toolchain-ci.sh)" >&2
+  exit 1
+fi
+if ! command -v cargo-zigbuild >/dev/null 2>&1; then
+  echo "error: cargo-zigbuild is required to cross-compile cmuxd-remote (see scripts/install-remote-daemon-toolchain-ci.sh)" >&2
+  exit 1
+fi
+
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 rm -f "$OUTPUT_DIR"/cmuxd-remote-* "$OUTPUT_DIR"/cmuxd-remote-checksums.txt "$OUTPUT_DIR"/cmuxd-remote-manifest.json
-
-DAEMON_GO_LDFLAGS="-s -w -X main.version=${VERSION}"
-DAEMON_GO_BUILD_ARGS=(
-  build
-  -trimpath
-  -buildvcs=false
-  -ldflags "$DAEMON_GO_LDFLAGS"
-)
 
 SUFFIX_TAG=""
 if [[ -n "$ASSET_SUFFIX" ]]; then
@@ -96,11 +95,13 @@ CHECKSUMS_ASSET_NAME="cmuxd-remote-checksums${SUFFIX_TAG}.txt"
 CHECKSUMS_PATH="${OUTPUT_DIR}/${CHECKSUMS_ASSET_NAME}"
 MANIFEST_PATH="${OUTPUT_DIR}/cmuxd-remote-manifest${SUFFIX_TAG}.json"
 
+# Asset names keep the historical <os>-<arch> spelling the app's embedded
+# manifest and bootstrap probe rely on; the third column is the Rust target.
 TARGETS=(
-  "darwin arm64"
-  "darwin amd64"
-  "linux arm64"
-  "linux amd64"
+  "darwin arm64 aarch64-apple-darwin"
+  "darwin amd64 x86_64-apple-darwin"
+  "linux arm64 aarch64-unknown-linux-musl"
+  "linux amd64 x86_64-unknown-linux-musl"
 )
 
 : > "$CHECKSUMS_PATH"
@@ -108,24 +109,22 @@ ENTRIES_FILE="$(mktemp "${TMPDIR:-/tmp}/cmuxd-remote-entries.XXXXXX")"
 trap 'rm -f "$ENTRIES_FILE"' EXIT
 : > "$ENTRIES_FILE"
 
+# Each target gets its own target dir so the four builds can run in parallel
+# without contending for cargo's build lock.
+BUILD_ROOT="${CMUXD_REMOTE_BUILD_ROOT:-${DAEMON_ROOT}/target/release-assets}"
 BUILD_PIDS=()
 BUILD_LABELS=()
 for target in "${TARGETS[@]}"; do
-  read -r GOOS GOARCH <<<"$target"
-  ASSET_NAME="cmuxd-remote-${GOOS}-${GOARCH}${SUFFIX_TAG}"
-  OUTPUT_PATH="${OUTPUT_DIR}/${ASSET_NAME}"
-
-  # Build into a temp path first, then rename (the binary content is the same
-  # regardless of suffix, so we build once and move).
-  BUILD_PATH="${OUTPUT_DIR}/cmuxd-remote-${GOOS}-${GOARCH}.build"
-  GOOS="$GOOS" \
-  GOARCH="$GOARCH" \
-  CGO_ENABLED=0 \
-  go -C "$DAEMON_ROOT" "${DAEMON_GO_BUILD_ARGS[@]}" \
-    -o "$BUILD_PATH" \
-    ./cmd/cmuxd-remote &
+  read -r ASSET_OS ASSET_ARCH RUST_TARGET <<<"$target"
+  (
+    cd "$DAEMON_ROOT"
+    CMUXD_REMOTE_VERSION="$VERSION" \
+    cargo zigbuild --release --locked \
+      --target "$RUST_TARGET" \
+      --target-dir "${BUILD_ROOT}/${RUST_TARGET}"
+  ) &
   BUILD_PIDS+=("$!")
-  BUILD_LABELS+=("${GOOS}/${GOARCH}")
+  BUILD_LABELS+=("${ASSET_OS}/${ASSET_ARCH} (${RUST_TARGET})")
 done
 
 BUILD_FAILED=0
@@ -142,16 +141,16 @@ fi
 # Assemble checksums and manifest entries in stable target order after every
 # parallel build succeeds. Parallel workers only write their own binary.
 for target in "${TARGETS[@]}"; do
-  read -r GOOS GOARCH <<<"$target"
-  ASSET_NAME="cmuxd-remote-${GOOS}-${GOARCH}${SUFFIX_TAG}"
+  read -r ASSET_OS ASSET_ARCH RUST_TARGET <<<"$target"
+  ASSET_NAME="cmuxd-remote-${ASSET_OS}-${ASSET_ARCH}${SUFFIX_TAG}"
   OUTPUT_PATH="${OUTPUT_DIR}/${ASSET_NAME}"
-  BUILD_PATH="${OUTPUT_DIR}/cmuxd-remote-${GOOS}-${GOARCH}.build"
-  mv "$BUILD_PATH" "$OUTPUT_PATH"
+  BUILD_PATH="${BUILD_ROOT}/${RUST_TARGET}/${RUST_TARGET}/release/cmuxd-remote"
+  cp "$BUILD_PATH" "$OUTPUT_PATH"
   chmod 755 "$OUTPUT_PATH"
   SHA256="$(shasum -a 256 "$OUTPUT_PATH" | awk '{print $1}')"
   printf '%s  %s\n' "$SHA256" "$ASSET_NAME" >> "$CHECKSUMS_PATH"
 
-  printf '%s\t%s\t%s\t%s\n' "$GOOS" "$GOARCH" "$ASSET_NAME" "$SHA256" >> "$ENTRIES_FILE"
+  printf '%s\t%s\t%s\t%s\n' "$ASSET_OS" "$ASSET_ARCH" "$ASSET_NAME" "$SHA256" >> "$ENTRIES_FILE"
 done
 
 python3 "$SCRIPT_DIR/generate_remote_daemon_release_manifest.py" \

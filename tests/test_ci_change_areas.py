@@ -133,7 +133,12 @@ def test_ios_only_skips_main_macos_ci() -> None:
 
 
 def test_remote_daemon_runs_go_only() -> None:
-    assert_areas(["daemon/remote/main.go"], macos=False, web=False, go=True)
+    assert_areas(["daemon/remote/src/main.rs"], macos=False, web=False, go=True)
+    assert_areas(["daemon/remote/Cargo.lock"], macos=False, web=False, go=True)
+
+
+def test_remote_daemon_toolchain_installer_runs_go_validation() -> None:
+    assert_areas(["scripts/install-remote-daemon-toolchain-ci.sh"], macos=True, web=False, go=True)
 
 
 def test_remote_daemon_asset_builder_runs_go_validation() -> None:

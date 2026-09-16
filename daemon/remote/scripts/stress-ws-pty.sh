@@ -5,17 +5,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 duration="${CMUX_PTY_STRESS_DURATION:-12h}"
-fuzztime="${CMUX_PTY_FUZZTIME:-5m}"
 log_every="${CMUX_PTY_STRESS_LOG_EVERY:-60}"
-test_timeout="${CMUX_PTY_TEST_TIMEOUT:-2m}"
-package="./cmd/cmuxd-remote"
-stress_filter='TestWebSocketPTY(StressSessionCleanupAndBoundedScrollback|ReconnectKeepsSessionProcess|MultiAttachUsesSmallestResize|RunsShellOverBinaryFrames)'
-stress_tmp="$(mktemp -d)"
-trap 'rm -rf "$stress_tmp"' EXIT
-stress_bin="$stress_tmp/cmuxd-remote.test"
+stress_filter="${CMUX_PTY_STRESS_FILTER:-scrollback_stays_bounded multi_attach_uses_smallest_size_and_reconnect_keeps_process single_use_lease_is_consumed_once_and_shell_runs_over_binary_frames}"
 
 cd "$REMOTE_DIR"
-export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.24.7+auto}"
 
 if [[ ! "$log_every" =~ ^[1-9][0-9]*$ ]]; then
   echo "invalid CMUX_PTY_STRESS_LOG_EVERY: $log_every" >&2
@@ -23,16 +16,26 @@ if [[ ! "$log_every" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 echo "== unit and integration =="
-go test "$package" -run 'Test(WebSocketPTY|ServeWS)' -count=1
+cargo test --locked --test ws --test stdio
 
-echo "== fuzz lease parser =="
-go test "$package" -run '^$' -fuzz FuzzConsumeWebSocketLease -fuzztime "$fuzztime"
-
-echo "== fuzz pty size normalizer =="
-go test "$package" -run '^$' -fuzz FuzzNormalizePTYSize -fuzztime "$fuzztime"
+echo "== randomized lease and pty-size robustness =="
+cargo test --locked --release --test robustness
 
 echo "== build stress binary =="
-go test -c "$package" -o "$stress_bin"
+stress_bin="$(cargo test --locked --release --test ws --no-run --message-format=json 2>/dev/null \
+  | python3 -c 'import json, sys
+for line in sys.stdin:
+    try:
+        obj = json.loads(line)
+    except ValueError:
+        continue
+    if obj.get("reason") == "compiler-artifact" and obj.get("executable") and obj["target"]["name"] == "ws":
+        print(obj["executable"])
+')"
+if [[ -z "$stress_bin" || ! -x "$stress_bin" ]]; then
+  echo "could not locate the ws test binary" >&2
+  exit 1
+fi
 
 deadline_epoch="$(python3 - "$duration" <<'PY'
 import re
@@ -58,13 +61,15 @@ while [[ "$(date +%s)" -lt "$deadline_epoch" ]]; do
   output_file="$(mktemp)"
   if [[ "$(uname -s)" == "Darwin" ]]; then
     set +e
-    /usr/bin/time -l "$stress_bin" -test.timeout "$test_timeout" -test.run "$stress_filter" -test.count=1 >"$output_file" 2>&1
+    # shellcheck disable=SC2086
+    /usr/bin/time -l "$stress_bin" --test-threads 1 $stress_filter >"$output_file" 2>&1
     status=$?
     set -e
     rss_kb="$(awk '/maximum resident set size/ {print int($1 / 1024)}' "$output_file" | tail -n 1)"
   else
     set +e
-    "$stress_bin" -test.timeout "$test_timeout" -test.run "$stress_filter" -test.count=1 >"$output_file" 2>&1
+    # shellcheck disable=SC2086
+    "$stress_bin" --test-threads 1 $stress_filter >"$output_file" 2>&1
     status=$?
     set -e
     rss_kb=""

@@ -14,6 +14,6 @@ public protocol RemoteSessionBuildInfoProviding: Sendable {
     /// dictionary, or `nil` for dev builds without one.
     func embeddedDaemonManifest() -> WorkspaceRemoteDaemonManifest?
     /// The directory containing the app executable, used only as a dev-only
-    /// repo-root discovery candidate for the local `go build` fallback.
+    /// repo-root discovery candidate for the local `cargo build` fallback.
     func executableDirectoryURL() -> URL?
 }

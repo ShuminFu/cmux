@@ -2,7 +2,7 @@
 
 Pinned upstream tmux commit: `a9ba7b8ecbe1d107aa716f52d53c99ea1a00cf11`.
 
-This map records how each selected upstream tmux regression or fuzz target is represented in cmux. It is documentation only; CI confidence comes from executable Go tests, Go fuzz targets, and the macOS terminal-renderer tests in `.github/workflows/tmux-corpus.yml`. The daemon and tmux-compat rows marked `pr` run on pull requests touching `daemon/remote/**`; the terminal-renderer rows remain nightly because they need the macOS app and GhosttyKit.
+This map records how each selected upstream tmux regression or fuzz target is represented in cmux. It is documentation only; CI confidence comes from the executable Rust test suites, seeded randomized robustness tests (`tests/robustness.rs`, the successors of the Go fuzz targets), and the macOS terminal-renderer tests in `.github/workflows/tmux-corpus.yml`. The daemon and tmux-compat rows marked `pr` run on pull requests touching `daemon/remote/**`; the terminal-renderer rows remain nightly because they need the macOS app and GhosttyKit.
 
 | Upstream source | cmux layer | Status | CI lane | Port note |
 | --- | --- | --- | --- | --- |
@@ -40,8 +40,8 @@ This map records how each selected upstream tmux regression or fuzz target is re
 | `regress/session-group-resize.sh` | remote-rpc | ported | pr | Smallest-client resize arbitration is covered in the remote session coordinator. |
 | `regress/style-trim.sh` | tmux-status-style | not_applicable | none | cmux does not implement tmux status line style trimming. |
 | `regress/tty-keys.sh` | terminal-input | adapted | nightly | OS key forwarding is covered in macOS terminal tests. |
-| `regress/utf8-test.sh` | terminal-renderer | adapted | nightly | UTF-8 rendering belongs to Ghostty/cmux; Go covers UTF-8 env and byte-safe command paths. |
-| `fuzz/cmd-parse-fuzzer.c` | tmux-compat | ported | nightly | Go fuzz covers supported tmux-compat argv parsing. |
-| `fuzz/format-fuzzer.c` | tmux-compat | ported | nightly | Go fuzz covers supported format-string expansion. |
-| `fuzz/input-fuzzer.c` | remote-pty | adapted | nightly | Go fuzz covers PTY control frames and send-keys tokens; full escape rendering remains in Ghostty. |
+| `regress/utf8-test.sh` | terminal-renderer | adapted | nightly | UTF-8 rendering belongs to Ghostty/cmux; the daemon tests cover UTF-8 env and byte-safe command paths. |
+| `fuzz/cmd-parse-fuzzer.c` | tmux-compat | ported | nightly | Randomized robustness tests cover supported tmux-compat argv parsing. |
+| `fuzz/format-fuzzer.c` | tmux-compat | ported | nightly | Randomized robustness tests cover supported format-string expansion. |
+| `fuzz/input-fuzzer.c` | remote-pty | adapted | nightly | Randomized robustness tests cover PTY control frames and send-keys tokens; full escape rendering remains in Ghostty. |
 | `fuzz/style-fuzzer.c` | terminal-renderer | adapted | nightly | Style and color parsing belongs to Ghostty/cmux rendering, with better truecolor expectations. |

@@ -4,10 +4,10 @@ on:
   # Temporarily manual-only beginning 2026-07-13 to pause automatic CI.
   workflow_dispatch:
     inputs:
-      fuzztime:
-        description: Time per Go fuzz target
+      robustness_iterations:
+        description: Iterations per randomized robustness test (multiplier over the default)
         required: false
-        default: 2m
+        default: "1"
 
 permissions:
   actions: write
@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  remote-daemon-fuzz:
+  remote-daemon-corpus:
     runs-on: ${{ vars.LINUX_RUNNER || 'blacksmith-4vcpu-ubuntu-2404' }}
     timeout-minutes: 30
     steps:
@@ -27,32 +27,23 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version-file: daemon/remote/go.mod
-          cache-dependency-path: daemon/remote/go.sum
+      - name: Install remote daemon toolchain (Rust, zig, cargo-zigbuild)
+        run: ./scripts/install-remote-daemon-toolchain-ci.sh
 
       - name: Run deterministic tmux corpus tests
         working-directory: daemon/remote
-        run: go test ./...
+        run: cargo test --locked
 
-      - name: Run tmux corpus fuzz targets
+      - name: Run randomized tmux corpus robustness tests
         working-directory: daemon/remote
         env:
-          FUZZTIME: ${{ github.event_name == 'pull_request' && '30s' || github.event.inputs.fuzztime || '2m' }}
+          CMUXD_ROBUSTNESS_ITERATIONS_MULTIPLIER: ${{ github.event.inputs.robustness_iterations || '1' }}
         run: |
           set -euo pipefail
-          for target in \
-            FuzzTmuxCompatArgParser \
-            FuzzTmuxRenderFormatSupportedSubset \
-            FuzzTmuxSendKeysTokens \
-            FuzzConsumeWebSocketLease \
-            FuzzNormalizePTYSize \
-            FuzzWebSocketPTYControlFrame
-          do
-            go test ./cmd/cmuxd-remote -run '^$' -fuzz "^${target}$" -fuzztime "$FUZZTIME"
-          done
+          # These replace the former Go fuzz targets (tmux argv parsing, format
+          # rendering, send-keys tokens, lease consumption, PTY size
+          # normalization, and control frames) with seeded randomized runs.
+          cargo test --locked --release --test robustness
 
   terminal-nightly:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

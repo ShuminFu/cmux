@@ -5,7 +5,7 @@ public import Foundation
 
 // cmuxd-remote bootstrap: probe the remote platform and existing install,
 // acquire a binary (explicit override, verified manifest download, or the
-// dev-only local `go build` fallback), upload + install it atomically, and
+// dev-only local `cargo build` fallback), upload + install it atomically, and
 // perform the stdio `hello` handshake. Faithful lift: probe/upload/install
 // script text, the hello request line, every NSError domain/code/message,
 // and the reinstall-on-missing-capability flow are pinned legacy behavior.
@@ -213,6 +213,26 @@ extension RemoteSessionCoordinator {
         return URL(fileURLWithPath: path, isDirectory: false).standardizedFileURL
     }
 
+    /// Rust target triple for a probed remote platform (asset naming keeps
+    /// the historical `<os>-<arch>` spelling).
+    static func rustTargetTriple(goOS: String, goArch: String) -> String? {
+        switch (goOS, goArch) {
+        case ("darwin", "arm64"): return "aarch64-apple-darwin"
+        case ("darwin", "amd64"): return "x86_64-apple-darwin"
+        case ("linux", "arm64"): return "aarch64-unknown-linux-musl"
+        case ("linux", "amd64"): return "x86_64-unknown-linux-musl"
+        default: return nil
+        }
+    }
+
+    static func hostRustTargetTriple() -> String {
+        #if arch(arm64)
+        return "aarch64-apple-darwin"
+        #else
+        return "x86_64-apple-darwin"
+        #endif
+    }
+
     static func versionedRemoteDaemonBuildURL(goOS: String, goArch: String, version: String) -> URL {
         URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("cmux-remote-daemon-build", isDirectory: true)
@@ -259,15 +279,32 @@ extension RemoteSessionCoordinator {
             ])
         }
         let daemonRoot = repoRoot.appendingPathComponent("daemon/remote", isDirectory: true)
-        let goModPath = daemonRoot.appendingPathComponent("go.mod").path
-        guard FileManager.default.fileExists(atPath: goModPath) else {
+        let manifestPath = daemonRoot.appendingPathComponent("Cargo.toml").path
+        guard FileManager.default.fileExists(atPath: manifestPath) else {
             throw NSError(domain: "cmux.remote.daemon", code: 21, userInfo: [
-                NSLocalizedDescriptionKey: "missing daemon module at \(goModPath)",
+                NSLocalizedDescriptionKey: "missing daemon crate at \(manifestPath)",
             ])
         }
-        guard let goBinary = Self.which("go") else {
+        guard let cargoBinary = Self.whichCargoTool("cargo") else {
             throw NSError(domain: "cmux.remote.daemon", code: 22, userInfo: [
-                NSLocalizedDescriptionKey: "go is required for the dev-only cmuxd-remote build fallback",
+                NSLocalizedDescriptionKey: "cargo is required for the dev-only cmuxd-remote build fallback",
+            ])
+        }
+        guard let rustTarget = Self.rustTargetTriple(goOS: goOS, goArch: goArch) else {
+            throw NSError(domain: "cmux.remote.daemon", code: 22, userInfo: [
+                NSLocalizedDescriptionKey: "no Rust target for \(goOS)-\(goArch)",
+            ])
+        }
+        // Cross-compiling (any Linux remote, or the other macOS arch) needs
+        // cargo-zigbuild; a same-platform remote can use plain cargo.
+        let cargoSubcommand: String
+        if Self.whichCargoTool("cargo-zigbuild") != nil {
+            cargoSubcommand = "zigbuild"
+        } else if Self.hostRustTargetTriple() == rustTarget {
+            cargoSubcommand = "build"
+        } else {
+            throw NSError(domain: "cmux.remote.daemon", code: 22, userInfo: [
+                NSLocalizedDescriptionKey: "cargo-zigbuild is required to cross-build cmuxd-remote for \(rustTarget) (cargo install cargo-zigbuild; see scripts/install-remote-daemon-toolchain-ci.sh)",
             ])
         }
 
@@ -275,24 +312,30 @@ extension RemoteSessionCoordinator {
         try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         var env = ProcessInfo.processInfo.environment
-        env["GOOS"] = goOS
-        env["GOARCH"] = goArch
-        env["CGO_ENABLED"] = "0"
-        let ldflags = "-s -w -X main.version=\(version)"
+        env["CMUXD_REMOTE_VERSION"] = version
+        let targetDir = output.deletingLastPathComponent().appendingPathComponent("target", isDirectory: true)
         let result = try runProcess(
-            executable: goBinary,
-            arguments: ["build", "-trimpath", "-buildvcs=false", "-ldflags", ldflags, "-o", output.path, "./cmd/cmuxd-remote"],
+            executable: cargoBinary,
+            arguments: [cargoSubcommand, "--release", "--locked", "--target", rustTarget, "--target-dir", targetDir.path],
             environment: env,
             currentDirectory: daemonRoot,
             stdin: nil,
-            timeout: 90
+            timeout: 600
         )
         guard result.status == 0 else {
-            let detail = Self.bestErrorLine(stderr: result.stderr, stdout: result.stdout) ?? "go build failed with status \(result.status)"
+            let detail = Self.bestErrorLine(stderr: result.stderr, stdout: result.stdout) ?? "cargo \(cargoSubcommand) failed with status \(result.status)"
             throw NSError(domain: "cmux.remote.daemon", code: 23, userInfo: [
                 NSLocalizedDescriptionKey: "failed to build cmuxd-remote: \(detail)",
             ])
         }
+        let built = targetDir
+            .appendingPathComponent(rustTarget, isDirectory: true)
+            .appendingPathComponent("release", isDirectory: true)
+            .appendingPathComponent("cmuxd-remote", isDirectory: false)
+        if FileManager.default.fileExists(atPath: output.path) {
+            try FileManager.default.removeItem(at: output)
+        }
+        try FileManager.default.copyItem(at: built, to: output)
         guard FileManager.default.isExecutableFile(atPath: output.path) else {
             throw NSError(domain: "cmux.remote.daemon", code: 24, userInfo: [
                 NSLocalizedDescriptionKey: "cmuxd-remote build output is not executable",
@@ -473,13 +516,19 @@ extension RemoteSessionCoordinator {
 
         var relativePaths: [String] = []
         for case let fileURL as URL in enumerator {
+            let relativePath = fileURL.path.replacingOccurrences(of: daemonRoot.path + "/", with: "")
+            if relativePath == "target" {
+                // cargo build output: large and never part of the source fingerprint.
+                enumerator.skipDescendants()
+                continue
+            }
             guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey]),
                   resourceValues.isRegularFile == true else {
                 continue
             }
 
-            let relativePath = fileURL.path.replacingOccurrences(of: daemonRoot.path + "/", with: "")
-            if relativePath == "go.mod" || relativePath == "go.sum" || relativePath.hasSuffix(".go") {
+            if relativePath == "Cargo.toml" || relativePath == "Cargo.lock" || relativePath == "rust-toolchain.toml"
+                || relativePath.hasSuffix(".rs") {
                 relativePaths.append(relativePath)
             }
         }
@@ -623,6 +672,16 @@ extension RemoteSessionCoordinator {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    /// `which`, plus rustup's default install dir, which an app launched from
+    /// Finder does not have on PATH.
+    private static func whichCargoTool(_ executable: String) -> String? {
+        if let found = which(executable) {
+            return found
+        }
+        let candidate = (NSHomeDirectory() as NSString).appendingPathComponent(".cargo/bin/\(executable)")
+        return FileManager.default.isExecutableFile(atPath: candidate) ? candidate : nil
+    }
+
     private static func which(_ executable: String) -> String? {
         for component in executableSearchPaths() {
             let candidate = (component as NSString).appendingPathComponent(executable)
@@ -661,7 +720,7 @@ extension RemoteSessionCoordinator {
         for base in candidates {
             var cursor = base.standardizedFileURL
             for _ in 0..<10 {
-                let marker = cursor.appendingPathComponent("daemon/remote/go.mod").path
+                let marker = cursor.appendingPathComponent("daemon/remote/Cargo.toml").path
                 if fm.fileExists(atPath: marker) {
                     return cursor
                 }

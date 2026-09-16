@@ -11,7 +11,7 @@ internal import CryptoKit
 /// Faithful lift of the manifest/cache/download half of the legacy
 /// `WorkspaceRemoteSessionController` bootstrap path. The embedded-manifest
 /// read stays app-side (`Bundle.main` never crosses into the package); the
-/// dev-only local `go build` fallback stays with the session controller.
+/// dev-only local `cargo build` fallback stays with the session controller.
 ///
 /// Isolation design: stateless `Sendable` value (injected `FileManager` +
 /// home directory only), so no actor is warranted; methods are synchronous

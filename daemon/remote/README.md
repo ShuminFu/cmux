@@ -1,6 +1,26 @@
-# cmuxd-remote (Go)
+# cmuxd-remote (Rust)
 
-Go remote daemon for `cmux ssh` bootstrap, capability negotiation, and remote proxy RPC. It is not in the terminal keystroke hot path.
+Rust remote daemon for `cmux ssh` bootstrap, capability negotiation, and remote proxy RPC. It is not in the terminal keystroke hot path.
+
+The crate is a byte-for-byte compatible port of the original Go daemon: wire
+formats, file layouts under `~/.cmux`, exit codes, and message text are
+preserved, and the port was validated differentially against the Go binary.
+
+## Build and test
+
+```bash
+cd daemon/remote
+cargo build --release          # target/release/cmuxd-remote for the host
+cargo test --locked            # unit + integration suites (stdio, persistent, ws, cli, robustness)
+cargo clippy --all-targets --locked -- -D warnings
+cargo fmt --all --check
+```
+
+Release assets are cross-compiled with `cargo-zigbuild` (static musl for
+Linux, Mach-O for macOS) by `scripts/build_remote_daemon_release_assets.sh`;
+`scripts/install-remote-daemon-toolchain-ci.sh` installs the pinned toolchain,
+the four targets, zig, and cargo-zigbuild. The version string is baked in at
+compile time from `CMUXD_REMOTE_VERSION` (default `dev`).
 
 ## Commands
 
@@ -125,7 +145,7 @@ The app embeds a compact manifest in `Info.plist` with:
 2. pinned SHA-256 digests
 3. release tag and checksums asset URL
 
-Release and nightly apps download and cache the matching binary locally, verify its SHA-256, then upload it to the remote host if needed. Dev builds can opt into a local `go build` fallback with `CMUX_REMOTE_DAEMON_ALLOW_LOCAL_BUILD=1`.
+Release and nightly apps download and cache the matching binary locally, verify its SHA-256, then upload it to the remote host if needed. Dev builds can opt into a local `cargo build` fallback with `CMUX_REMOTE_DAEMON_ALLOW_LOCAL_BUILD=1` (cross-compiling for a Linux remote needs `cargo-zigbuild`).
 
 To inspect what a given app build trusts, run:
 1. `cmux remote-daemon-status`

@@ -50,7 +50,7 @@ This is a **living implementation spec** (also called an **execution spec**): a 
 - `DONE` background `ssh -N -R 127.0.0.1:PORT:127.0.0.1:LOCAL_RELAY_PORT` process reverse-forwards a TCP port to a dedicated authenticated local relay server. Uses TCP instead of Unix socket forwarding because many servers have `AllowStreamLocalForwarding` disabled.
 - `DONE` relay process uses `-S none` / standalone SSH transport (avoids ControlMaster multiplexing and inherited `RemoteForward` directives) and `ExitOnForwardFailure=yes` so dead reverse binds fail fast instead of publishing bad relay metadata.
 - `DONE` relay address written to `~/.cmux/socket_addr` on the remote only after the reverse forward survives startup validation.
-- `DONE` Go CLI no longer polls for relay readiness. It dials the published relay once and only refreshes `~/.cmux/socket_addr` a single time to recover from a stale shared address rewrite.
+- `DONE` The daemon CLI no longer polls for relay readiness. It dials the published relay once and only refreshes `~/.cmux/socket_addr` a single time to recover from a stale shared address rewrite.
 - `DONE` `cmux ssh` startup exports session-local `CMUX_SOCKET_PATH=127.0.0.1:<relay_port>` so parallel sessions pin to their own relay instead of racing on shared socket_addr.
 - `DONE` session snapshots persist the relay port for persistent SSH PTYs and mint fresh relay credentials on restore, so a reattached remote shell can keep using its existing `CMUX_SOCKET_PATH=127.0.0.1:<relay_port>` after app relaunch.
 - `DONE` relay startup writes `~/.cmux/relay/<relay_port>.daemon_path`; remote `cmux` wrapper uses this to select the right daemon binary per session, including mixed local cmux versions.
@@ -133,14 +133,14 @@ Recompute effective size on:
 | M-002 | Remote bootstrap/upload/start + hello handshake | DONE | Includes daemon capability handshake + status surfacing |
 | M-003 | Reconnect/disconnect UX + API + improved error surfacing | DONE | Includes retry count in surfaced errors |
 | M-004 | Docker e2e for bootstrap/reconnect shell niceties | DONE | Docker suites validate proxy-path bootstrap and reconnect behavior |
-| M-004b | CLI relay: run cmux commands from within SSH sessions | DONE | Reverse TCP forward + Go CLI relay + bootstrap wrapper |
+| M-004b | CLI relay: run cmux commands from within SSH sessions | DONE | Reverse TCP forward + daemon CLI relay + bootstrap wrapper |
 | M-005 | Remove automatic remote port mirroring path | DONE | `WorkspaceRemoteSessionController` now uses one shared daemon-backed proxy endpoint |
 | M-006 | Transport-scoped local proxy broker (SOCKS5 + CONNECT) | DONE | Identical SSH transports now reuse one local proxy endpoint |
 | M-007 | Remote proxy stream RPC in `cmuxd-remote` | DONE | `proxy.open/close/write/proxy.stream.subscribe` plus pushed stream events implemented |
 | M-008 | WebView proxy auto-wiring for remote workspaces | DONE | Workspace-scoped `WKWebsiteDataStore.proxyConfigurations` wiring is active |
 | M-009 | PTY resize coordinator (`smallest screen wins`) | DONE | Daemon session RPC now tracks attachments and applies min cols/rows semantics with unit tests |
 | M-010 | Resize + proxy reconnect e2e test suites | DONE | `tests_v2/test_ssh_remote_docker_forwarding.py` validates HTTP/websocket egress plus SOCKS pipelined-payload handling; `tests_v2/test_ssh_remote_docker_reconnect.py` verifies reconnect recovery and repeats SOCKS pipelined-payload checks after host restart; `tests_v2/test_ssh_remote_proxy_bind_conflict.py` validates structured `proxy_unavailable` bind-conflict surfacing and `local_proxy_port` status retention under bind conflict; `tests_v2/test_ssh_remote_daemon_resize_stdio.py` validates session resize semantics over real stdio RPC process boundaries; `tests_v2/test_ssh_remote_cli_metadata.py` validates `workspace.remote.configure` numeric-string compatibility, explicit `null` clear semantics (including `workspace.remote.status` reflection), strict `port`/`local_proxy_port` validation (bounds/type), case-insensitive SSH option override precedence for StrictHostKeyChecking/control-socket keys, and `local_proxy_port` payload echo for deterministic bind-conflict test hook behavior |
-| M-011 | Detachable persistent `cmux ssh` PTY sessions | IN PROGRESS | Persistent remote daemon slots keep PTY sessions alive across local surface close and app relaunch; coverage includes Go daemon auth/reattach tests, Swift restore tests, CLI contract tests, and `tests_v2/test_ssh_remote_detachable_pty.py` |
+| M-011 | Detachable persistent `cmux ssh` PTY sessions | IN PROGRESS | Persistent remote daemon slots keep PTY sessions alive across local surface close and app relaunch; coverage includes daemon auth/reattach tests, Swift restore tests, CLI contract tests, and `tests_v2/test_ssh_remote_detachable_pty.py` |
 
 ## 7. Acceptance Test Matrix (With Status)
 

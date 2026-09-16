@@ -1,5 +1,5 @@
 /// The captured outcome of one finished remote-session subprocess
-/// (`ssh`, `scp`, or the dev-only `go build` fallback).
+/// (`ssh`, `scp`, or the dev-only `cargo build` fallback).
 ///
 /// Lifted from the legacy `WorkspaceRemoteSessionController.CommandResult`
 /// (renamed per the Workspace decomposition plan).

@@ -1,5 +1,5 @@
 /// Blocking subprocess execution seam for the session coordinator's SSH/SCP
-/// orchestration (and the dev-only `go build` fallback).
+/// orchestration (and the dev-only `cargo build` fallback).
 ///
 /// Replaces the legacy `runProcessOverrideForTesting` static test seam with
 /// constructor injection: production injects ``RemoteSessionProcessRunner``,

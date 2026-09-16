@@ -146,7 +146,7 @@ public final class RemoteSessionCoordinator: @unchecked Sendable {
     ///   - connectionBroker: Process-wide native SSH ownership and per-host
     ///     connection-attempt broker.
     ///   - manifestRepository: cmuxd-remote manifest/binary-cache repository.
-    ///   - processRunner: Blocking subprocess seam (ssh/scp/dev go build).
+    ///   - processRunner: Blocking subprocess seam (ssh/scp/dev cargo build).
     ///   - reachabilityProbe: SSH endpoint reachability seam for the
     ///     reconnect-suspend policy.
     ///   - relayCommandRewriter: Alias-aware CLI relay command rewriter.
